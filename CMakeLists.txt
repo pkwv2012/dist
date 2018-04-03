@@ -32,7 +32,7 @@ cmake_minimum_required(VERSION 2.8)
 #-------------------------------------------------------------------------------
 #add_definitions("-Wall -Wno-sign-compare -O3 -std=c++11 -march=native 
 add_definitions("-Wall -Wno-sign-compare -std=c++11 -march=native 
--Wno-strict-aliasing -Wno-comment")
+-Wno-strict-aliasing -Wno-comment -pthread")
 
 #-------------------------------------------------------------------------------
 # Declare where our project will be installed.

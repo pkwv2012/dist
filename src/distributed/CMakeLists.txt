@@ -5,6 +5,7 @@ add_library(distributed STATIC dist_score_function.cc dist_linear_score.cc dist_
 target_link_libraries(distributed ${STA_DEPS})
 
 add_executable(dist_xlearn_train dist_train_main.cc dist_solver.cc dist_trainer.cc dist_inference.cc)
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread")
 target_link_libraries(dist_xlearn_train solver distributed)
 
 install(TARGETS distributed DESTINATION lib/distributed)
