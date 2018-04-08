@@ -31,8 +31,8 @@ cmake_minimum_required(VERSION 2.8)
 # Optimization on architecture
 #-------------------------------------------------------------------------------
 #add_definitions("-Wall -Wno-sign-compare -O3 -std=c++11 -march=native 
-add_definitions("-Wall -Wno-sign-compare -std=c++11 -march=native 
--Wno-strict-aliasing -Wno-comment -pthread")
+add_definitions("-Wall -Wno-sign-compare -std=c++11 -march=native -pthread
+-Wno-strict-aliasing -Wno-comment")
 
 #-------------------------------------------------------------------------------
 # Declare where our project will be installed.
@@ -82,3 +82,4 @@ add_subdirectory(src/distributed)
 add_subdirectory(src/c_api)
 add_subdirectory(python-package)
 add_subdirectory(scripts)
+add_subdirectory(R-package)

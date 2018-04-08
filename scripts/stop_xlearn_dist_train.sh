@@ -7,4 +7,4 @@
 #
 
 
-ps -ef | grep xlearn_dist_train | awk '{ print $2 }' | sudo xargs kill -9
+ps aux | grep dist_xlearn_train | awk '{ print $2 }' | sudo xargs kill -9
