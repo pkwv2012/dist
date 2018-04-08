@@ -22,7 +22,7 @@ ${bin} ${arg} &
 
 # start servers
 export DMLC_ROLE='server'
-for ((i=0; i<${DMLC_NUM_SERVER}; ++i)); do
+for ((count=0; count<${DMLC_NUM_SERVER}; count++)); do
     export HEAPPROFILE=./S${i}
     ${bin} ${arg} &
 done
