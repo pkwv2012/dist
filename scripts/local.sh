@@ -15,11 +15,11 @@ shift
 bin=$1
 shift
 arg="$@"
+export DMLC_PS_ROOT_URI='10.0.0.14'
+export DMLC_PS_ROOT_PORT=8000
 
 if [ $ROLE=='scheduler' ]; then
     # start the scheduler
-    export DMLC_PS_ROOT_URI='10.0.0.14'
-    export DMLC_PS_ROOT_PORT=8000
     export DMLC_ROLE='scheduler'
     ${bin} ${arg} &
 fi
