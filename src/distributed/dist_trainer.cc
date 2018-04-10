@@ -174,6 +174,7 @@ void DistTrainer::train(std::vector<Reader*>& train_reader,
     show_head_info(!test_reader.empty()); 
   }
   for (int n = 1; n <= epoch_; ++n) {
+    print_info("epoch " + std::to_string(n));
     Timer timer;
     timer.tic();
     // Calc grad and update model

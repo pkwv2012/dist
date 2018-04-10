@@ -24,6 +24,8 @@ This file is the implementation of CrossEntropyLoss class.
 #include<thread>
 #include<atomic>
 #include<map>
+#include <src/base/timer.h>
+#include <src/base/format_print.h>
 
 namespace xLearn {
 
@@ -213,7 +215,11 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
                       feature_ids.end());
 
   gradient_pull->resize(feature_ids.size());
+  Timer timer;
+  timer.tic();
   kv_w_->Wait(kv_w_->Pull(feature_ids, &(*gradient_pull)));
+  timer.toc();
+  print_info("time used: " + std::to_string(timer.get()));
   v_pull->resize(feature_ids.size() * model.GetNumK());
   if (model.GetScoreFunction().compare("fm") == 0 ||
       model.GetScoreFunction().compare("ffm") == 0) {
