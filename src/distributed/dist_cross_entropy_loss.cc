@@ -200,7 +200,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
 
   auto gradient_push = std::make_shared<std::vector<float>>();
   auto v_push = std::make_shared<std::vector<float>>();
-
+  print_info("prepare info");
   for (index_t i = 0; i < row_len; ++i) {
     SparseRow* row = matrix->row[i];
     for (SparseRow::const_iterator iter = row->begin();
@@ -215,6 +215,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
                       feature_ids.end());
 
   gradient_pull->resize(feature_ids.size());
+  print_info("waiting for pull params");
   Timer timer;
   timer.tic();
   kv_w_->Wait(kv_w_->Pull(feature_ids, &(*gradient_pull)));
