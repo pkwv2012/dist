@@ -216,14 +216,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
 
   gradient_pull->resize(feature_ids.size());
   print_info("waiting for pull params");
-  Timer timer;
-  timer.tic();
   kv_w_->Wait(kv_w_->Pull(feature_ids, &(*gradient_pull)));
-  timer.toc();
-  print_info("time used: " + std::to_string(timer.get()));
-  for (int i = 1; i < feature_ids.size(); ++ i) {
-    print_info("gradient pull: " + std::to_string((*gradient_pull)[i]));
-  }
   v_pull->resize(feature_ids.size() * model.GetNumK());
   if (model.GetScoreFunction().compare("fm") == 0 ||
       model.GetScoreFunction().compare("ffm") == 0) {
@@ -245,8 +238,6 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
   }
   // multi-thread training
   int count = lock_free_ ? threadNumber_ : 1;
-  timer.reset();
-  timer.tic();
   std::vector<real_t> sum(count, 0);
   for (int i = 0; i < count; ++i) {
     index_t start_idx = getStart(row_len, count, i);
@@ -266,19 +257,13 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
   }
   // Wait all of the threads finish their job
   pool_->Sync(count);
-  timer.toc();
-  print_info("multi thread time used: " + std::to_string(timer.get()));
   gradient_push->resize(feature_ids.size());
   for (int i = 0; i < feature_ids.size(); ++i) {
     index_t idx = feature_ids[i];
     real_t g = gradient_push_map[idx];
     (*gradient_push)[i] = g;
   }
-  timer.reset();
-  timer.tic();
   kv_w_->Wait(kv_w_->Push(feature_ids, *gradient_push));
-  timer.toc();
-  print_info("push time used: " + std::to_string(timer.get()));
   v_push->resize(feature_ids.size() * model.GetNumK());
   for (int i = 0; i < feature_ids.size(); ++i) {
     index_t idx = feature_ids[i];
