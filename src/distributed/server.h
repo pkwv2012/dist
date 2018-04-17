@@ -54,6 +54,7 @@ struct KVServerSGDHandle {
         }
       }
     }
+    LOG(INFO) << "Response finish" << std::endl;
     server->Response(req_meta, res);
   }
  private:

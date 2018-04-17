@@ -238,6 +238,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
     v_map[idx] = vec_k;
   }
   // multi-thread training
+  LOG(INFO) << "multi-thread training" << std::endl;
   int count = lock_free_ ? threadNumber_ : 1;
   std::vector<real_t> sum(count, 0);
   for (int i = 0; i < count; ++i) {
@@ -257,6 +258,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
                              end_idx));
   }
   // Wait all of the threads finish their job
+  LOG(INFO) << "wait for training finish" << std::endl;
   pool_->Sync(count);
   gradient_push->resize(feature_ids.size());
   for (int i = 0; i < feature_ids.size(); ++i) {
@@ -264,7 +266,9 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
     real_t g = gradient_push_map[idx];
     (*gradient_push)[i] = g;
   }
+  LOG(INFO) << "push params" << std::endl;
   kv_w_->Wait(kv_w_->Push(feature_ids, *gradient_push));
+  LOG(INFO) << "finish push" << std::endl;
   v_push->resize(feature_ids.size() * model.GetNumK());
   for (int i = 0; i < feature_ids.size(); ++i) {
     index_t idx = feature_ids[i];
