@@ -36,7 +36,7 @@ struct KVServerSGDHandle {
       CHECK_EQ(keys_size * v_dim, req_data.vals.size());
     } else {
       res.keys = req_data.keys;
-      res.vals.resize(keys_size);
+      res.vals.resize(keys_size * v_dim);
     }
     LOG(INFO) << "keys_size=" << keys_size << std::endl;
     LOG(INFO) << "v_dim=" << v_dim << std::endl;
@@ -87,7 +87,7 @@ struct KVServerAdaGradHandle {
       CHECK_EQ(keys_size * v_dim, req_data.vals.size());
     } else {
       res.keys = req_data.keys;
-      res.vals.resize(keys_size);
+      res.vals.resize(keys_size * v_dim);
     }
     for (size_t i = 0; i < keys_size; ++i) {
       ps::Key key = req_data.keys[i];
@@ -133,7 +133,7 @@ struct KVServerFTRLHandle {
       CHECK_EQ(keys_size * v_dim, req_data.vals.size());
     } else {
       res.keys = req_data.keys;
-      res.vals.resize(keys_size);
+      res.vals.resize(keys_size * v_dim);
     }
     for (size_t i = 0; i < keys_size; ++i) {
       ps::Key key = req_data.keys[i];
