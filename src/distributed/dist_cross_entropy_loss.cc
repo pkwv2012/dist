@@ -24,6 +24,8 @@ This file is the implementation of CrossEntropyLoss class.
 #include<thread>
 #include<atomic>
 #include<map>
+#include <src/base/timer.h>
+#include <src/base/format_print.h>
 
 namespace xLearn {
 
@@ -198,7 +200,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
 
   auto gradient_push = std::make_shared<std::vector<float>>();
   auto v_push = std::make_shared<std::vector<float>>();
-
+  LOG(INFO) << "prepare info" << std::endl;
   for (index_t i = 0; i < row_len; ++i) {
     SparseRow* row = matrix->row[i];
     for (SparseRow::const_iterator iter = row->begin();
@@ -213,7 +215,9 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
                       feature_ids.end());
 
   gradient_pull->resize(feature_ids.size());
+  LOG(INFO) << "waiting for pull params" << std::endl;
   kv_w_->Wait(kv_w_->Pull(feature_ids, &(*gradient_pull)));
+  LOG(INFO) << "got params" << std::endl;
   v_pull->resize(feature_ids.size() * model.GetNumK());
   if (model.GetScoreFunction().compare("fm") == 0 ||
       model.GetScoreFunction().compare("ffm") == 0) {
@@ -234,6 +238,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
     v_map[idx] = vec_k;
   }
   // multi-thread training
+  LOG(INFO) << "multi-thread training" << std::endl;
   int count = lock_free_ ? threadNumber_ : 1;
   std::vector<real_t> sum(count, 0);
   for (int i = 0; i < count; ++i) {
@@ -253,6 +258,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
                              end_idx));
   }
   // Wait all of the threads finish their job
+  LOG(INFO) << "wait for training finish" << std::endl;
   pool_->Sync(count);
   gradient_push->resize(feature_ids.size());
   for (int i = 0; i < feature_ids.size(); ++i) {
@@ -260,7 +266,9 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
     real_t g = gradient_push_map[idx];
     (*gradient_push)[i] = g;
   }
+  LOG(INFO) << "push params" << std::endl;
   kv_w_->Wait(kv_w_->Push(feature_ids, *gradient_push));
+  LOG(INFO) << "finish push" << std::endl;
   v_push->resize(feature_ids.size() * model.GetNumK());
   for (int i = 0; i < feature_ids.size(); ++i) {
     index_t idx = feature_ids[i];
