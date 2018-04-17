@@ -217,6 +217,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
   gradient_pull->resize(feature_ids.size());
   LOG(INFO) << "waiting for pull params" << std::endl;
   kv_w_->Wait(kv_w_->Pull(feature_ids, &(*gradient_pull)));
+  LOG(INFO) << "got params" << std::endl;
   v_pull->resize(feature_ids.size() * model.GetNumK());
   if (model.GetScoreFunction().compare("fm") == 0 ||
       model.GetScoreFunction().compare("ffm") == 0) {
