@@ -29,7 +29,7 @@ struct KVServerSGDHandle {
   void operator() (const ps::KVMeta& req_meta,
                    const ps::KVPairs<float>& req_data,
                    ps::KVServer<float>* server) {
-    LOG(INFO) << "SGDHandler";
+    LOG(INFO) << "SGDHandler" << std::endl;
     size_t keys_size = req_data.keys.size();
     ps::KVPairs<float> res;
     if (req_meta.push) {
@@ -38,6 +38,7 @@ struct KVServerSGDHandle {
       res.keys = req_data.keys;
       res.vals.resize(keys_size);
     }
+    LOG(INFO) << "keys_size=" << keys_size << std::endl;
     for (size_t i = 0; i < keys_size; ++i) {
       ps::Key key = req_data.keys[i];
       SGDEntry& val = store_[key];
