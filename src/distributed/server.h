@@ -40,6 +40,8 @@ struct KVServerSGDHandle {
     }
     LOG(INFO) << "keys_size=" << keys_size << std::endl;
     LOG(INFO) << "v_dim=" << v_dim << std::endl;
+    LOG(INFO) << "req_data.key_size=" << req_data.keys.size() << std::endl;
+    LOG(INFO).flush();
     for (size_t i = 0; i < keys_size; ++i) {
       ps::Key key = req_data.keys[i];
       if (store_.find(key) == store_.end()) {
