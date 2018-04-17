@@ -39,8 +39,12 @@ struct KVServerSGDHandle {
       res.vals.resize(keys_size);
     }
     LOG(INFO) << "keys_size=" << keys_size << std::endl;
+    LOG(INFO) << "v_dim=" << v_dim << std::endl;
     for (size_t i = 0; i < keys_size; ++i) {
       ps::Key key = req_data.keys[i];
+      if (store_.find(key) == store_.end()) {
+        store_[key] = SGDEntry();
+      }
       SGDEntry& val = store_[key];
       if (req_meta.push) {
         for (int j = 0; j < val.w.size(); ++j) {
