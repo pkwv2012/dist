@@ -29,6 +29,7 @@ struct KVServerSGDHandle {
   void operator() (const ps::KVMeta& req_meta,
                    const ps::KVPairs<float>& req_data,
                    ps::KVServer<float>* server) {
+    LOG(INFO) << "SGDHandler";
     size_t keys_size = req_data.keys.size();
     ps::KVPairs<float> res;
     if (req_meta.push) {
@@ -71,6 +72,7 @@ struct KVServerAdaGradHandle {
   void operator() (const ps::KVMeta& req_meta,
                    const ps::KVPairs<float>& req_data,
                    ps::KVServer<float>* server) {
+    LOG(INFO) << "AdaGradHandler";
     size_t keys_size = req_data.keys.size();
     ps::KVPairs<float> res;
     if (req_meta.push) {
@@ -116,6 +118,7 @@ struct KVServerFTRLHandle {
   void operator() (const ps::KVMeta& req_meta,
                    const ps::KVPairs<float>& req_data,
                    ps::KVServer<float>* server) {
+    LOG(INFO) << "FTRLHandler";
     size_t keys_size = req_data.keys.size();
     ps::KVPairs<float> res;
     if (req_meta.push) {
