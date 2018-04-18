@@ -168,7 +168,8 @@ struct KVServerFTRLHandle {
 class XLearnServer{
  public:
   XLearnServer(int argc, char* argv[]){
-    auto server_ = new ps::KVServer<float>(0);
+    server_ = new ps::KVServer<float>(0);
+    kv_v_ = new ps::KVServer<float>(1);
     checker_ = new xLearn::DistChecker;
     checker_->Initialize(hyper_param_.is_train, argc, argv);
     checker_->check_cmd(hyper_param_);
@@ -190,17 +191,21 @@ class XLearnServer{
 
     if (hyper_param_.opt_type.compare("sgd") == 0) {
       server_->set_request_handle(KVServerSGDHandle());
+      kv_v_->set_request_handle(KVServerSGDHandle());
     }
     if (hyper_param_.opt_type.compare("adagrad") == 0) {
       server_->set_request_handle(KVServerAdaGradHandle());
+      kv_v_->set_request_handle(KVServerAdaGradHandle());
     }
     if (hyper_param_.opt_type.compare("ftrl") == 0) {
       server_->set_request_handle(KVServerFTRLHandle());
+      kv_v_->set_request_handle(KVServerFTRLHandle());
     }
     std::cout << "init server success " << std::endl;
   }
   ~XLearnServer(){}
   ps::KVServer<float>* server_;
+  ps::KVServer<float>* kv_v_;
   xLearn::HyperParam hyper_param_;
   xLearn::DistChecker* checker_;
 };//end class Server
