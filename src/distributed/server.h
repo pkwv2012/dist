@@ -64,9 +64,9 @@ struct KVServerSGDHandle {
       }
     }
     LOG(INFO) << customer_id << "   Responsing" << std::endl;
-    res.DebugPrint(customer_id);
+    // res.DebugPrint(customer_id);
     server->Response(req_meta, res);
-    res.DebugPrint(customer_id);
+    // res.DebugPrint(customer_id);
     LOG(INFO) << customer_id << "    Response finish" << std::endl;
   }
  private:
