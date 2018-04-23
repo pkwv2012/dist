@@ -195,6 +195,7 @@ void DistSolver::init_train() {
   if (hyper_param_.thread_number != 0) {
     threadNumber = hyper_param_.thread_number;
   }
+  LOG(INFO) << "ThreadNumber=" << threadNumber << std::endl;
   pool_ = new ThreadPool(threadNumber);
   /*********************************************************
    *  Initialize Reader                                    *

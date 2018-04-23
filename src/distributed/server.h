@@ -26,22 +26,25 @@ typedef struct SGDEntry{
 } sgdentry;
 
 struct KVServerSGDHandle {
+  KVServerSGDHandle(int v_dim=1)
+    : v_dim_(v_dim) {}
+
   void operator() (const ps::KVMeta& req_meta,
                    const ps::KVPairs<float>& req_data,
                    ps::KVServer<float>* server) {
+    auto customer_id = server->get_customer()->id();
     LOG(INFO) << "SGDHandler" << std::endl;
     size_t keys_size = req_data.keys.size();
     ps::KVPairs<float> res;
     if (req_meta.push) {
-      CHECK_EQ(keys_size * v_dim, req_data.vals.size());
+      CHECK_EQ(keys_size * v_dim_, req_data.vals.size());
     } else {
       res.keys = req_data.keys;
-      res.vals.resize(keys_size * v_dim);
+      res.vals.resize(keys_size * v_dim_);
     }
     LOG(INFO) << "keys_size=" << keys_size << std::endl;
-    LOG(INFO) << "v_dim=" << v_dim << std::endl;
+    LOG(INFO) << "v_dim=" << v_dim_ << std::endl;
     LOG(INFO) << "req_data.key_size=" << req_data.keys.size() << std::endl;
-    LOG(INFO).flush();
     for (size_t i = 0; i < keys_size; ++i) {
       ps::Key key = req_data.keys[i];
       if (store_.find(key) == store_.end()) {
@@ -50,21 +53,25 @@ struct KVServerSGDHandle {
       SGDEntry& val = store_[key];
       if (req_meta.push) {
         for (int j = 0; j < val.w.size(); ++j) {
-          float gradient = req_data.vals[i * v_dim + j];
+          float gradient = req_data.vals[i * v_dim_ + j];
           gradient += regu_lambda * gradient;
           val.w[j] -= learning_rate * gradient;
         }
       } else {
         for (int j = 0; j < val.w.size(); ++j) {
-          res.vals[i * v_dim + j] = val.w[j];
+          res.vals[i * v_dim_ + j] = val.w[j];
         }
       }
     }
-    LOG(INFO) << "Response finish" << std::endl;
+    LOG(INFO) << customer_id << "   Responsing" << std::endl;
+    res.DebugPrint(customer_id);
     server->Response(req_meta, res);
+    res.DebugPrint(customer_id);
+    LOG(INFO) << customer_id << "    Response finish" << std::endl;
   }
  private:
   std::unordered_map<ps::Key, sgdentry> store_;
+  int v_dim_;
 };
 
 typedef struct AdaGradEntry {
@@ -190,8 +197,8 @@ class XLearnServer{
     }
 
     if (hyper_param_.opt_type.compare("sgd") == 0) {
-      server_->set_request_handle(KVServerSGDHandle());
-      kv_v_->set_request_handle(KVServerSGDHandle());
+      server_->set_request_handle(KVServerSGDHandle(1));
+      kv_v_->set_request_handle(KVServerSGDHandle(v_dim));
     }
     if (hyper_param_.opt_type.compare("adagrad") == 0) {
       server_->set_request_handle(KVServerAdaGradHandle());

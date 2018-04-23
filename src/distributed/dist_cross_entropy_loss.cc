@@ -68,11 +68,11 @@ void DistCrossEntropyLoss::Predict(const DMatrix* data_matrix,
   feature_ids.erase(unique(feature_ids.begin(), feature_ids.end()),
                     feature_ids.end());
   gradient_pull->resize(feature_ids.size());
-  kv_w_->Pull(feature_ids, &(*gradient_pull));
+  kv_w_->Wait(kv_w_->Pull(feature_ids, &(*gradient_pull)));
   v_pull->resize(feature_ids.size() * model.GetNumK());
   if (model.GetScoreFunction().compare("fm") == 0 ||
       model.GetScoreFunction().compare("ffm") == 0) {
-    kv_v_->Pull(feature_ids, &(*v_pull));
+    kv_v_->Wait(kv_v_->Pull(feature_ids, &(*v_pull)));
   }
   for (int i = 0; i < gradient_pull->size(); ++i) {
     index_t idx = feature_ids[i];
@@ -229,7 +229,9 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
     weight_map[idx] = weight;
     gradient_push_map[idx] = 0.0;
   }
-  for (int i = 0; i < v_pull->size(); ++i) {
+  LOG(INFO) << "model NumK=" << model.GetNumK() << std::endl;
+  LOG(INFO) << "val size=" << v_pull->size() << std::endl;
+  for (int i = 0; i < feature_ids.size(); ++i) {
     index_t idx = feature_ids[i];
     std::vector<real_t> vec_k;
     for(int j = 0; j < model.GetNumK(); ++j) {
@@ -268,7 +270,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
   }
   LOG(INFO) << "push params" << std::endl;
   kv_w_->Wait(kv_w_->Push(feature_ids, *gradient_push));
-  LOG(INFO) << "finish push" << std::endl;
+  LOG(INFO) << "finish push w" << std::endl;
   v_push->resize(feature_ids.size() * model.GetNumK());
   for (int i = 0; i < feature_ids.size(); ++i) {
     index_t idx = feature_ids[i];
@@ -280,6 +282,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
       model.GetScoreFunction().compare("ffm") == 0) {
     kv_v_->Wait(kv_v_->Push(feature_ids, *v_push));
   }
+  LOG(INFO) << "finish push v" << std::endl;
   // Accumulate loss
   for (int i = 0; i < sum.size(); ++i) {
     loss_sum_ += sum[i];

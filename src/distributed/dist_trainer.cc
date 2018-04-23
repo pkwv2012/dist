@@ -234,6 +234,7 @@ real_t DistTrainer::calc_gradient(std::vector<Reader*>& reader) {
     for (;;) {
       index_t tmp = reader[i]->Samples(matrix);
       if (tmp == 0) { break; }
+      LOG(INFO) << "trainer batch" << std::endl;
       loss_->CalcGrad(matrix, *model_);
     }
   }
