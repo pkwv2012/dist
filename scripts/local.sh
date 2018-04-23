@@ -15,26 +15,32 @@ shift
 bin=$1
 shift
 arg="$@"
-export DMLC_PS_ROOT_URI='10.0.0.14'
+export DMLC_PS_ROOT_URI='127.0.0.1'
 export DMLC_PS_ROOT_PORT=8000
 
-if [ $ROLE=='scheduler' ]; then
+if [[ $ROLE == 'scheduler' ]]
+then
+    echo $ROLE
     # start the scheduler
     export DMLC_ROLE='scheduler'
     ${bin} ${arg} &
 fi
 
 
-if [ $ROLE=='server' ]; then
+if [[ $ROLE == 'server' ]]
+then
     # start servers
     export DMLC_ROLE='server'
     # for ((count=0; count<${DMLC_NUM_SERVER}; count++)); do
     export HEAPPROFILE=./S${i}
+    echo $ROLE
     ${bin} ${arg} &
     # done
 fi
 
-if [ $ROLE=='worker' ]; then
+if [[ $ROLE == 'worker' ]]
+then
+    echo $ROLE
     # start workers
     export DMLC_ROLE='worker'
     # for ((i=0; i<${DMLC_NUM_WORKER}; ++i)); do
