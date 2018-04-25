@@ -26,6 +26,7 @@ This file is the implementation of CrossEntropyLoss class.
 #include<map>
 #include <src/base/timer.h>
 #include <src/base/format_print.h>
+#include <unordered_set>
 
 namespace xLearn {
 
@@ -189,7 +190,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
   CHECK_GT(matrix->row_length, 0);
   size_t row_len = matrix->row_length;
   total_example_ += row_len;
-  auto feature_ids = std::vector<ps::Key>();
+  auto feature_set = std::unordered_set<ps::Key>();
   auto gradient_pull = std::make_shared<std::vector<float>>();
   auto v_pull = std::make_shared<std::vector<float>>();
   std::map<index_t, real_t> weight_map;
@@ -206,13 +207,13 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
     for (SparseRow::const_iterator iter = row->begin();
          iter != row->end(); ++iter) {
       index_t idx = iter->feat_id;
-      feature_ids.push_back(idx);
+      feature_set.insert(idx);
+      // feature_ids.push_back(idx);
       weight_map[idx] = 0.0;
     }
   }
+  auto feature_ids = std::vector<ps::Key>(feature_set.begin(), feature_set.end());
   std::sort(feature_ids.begin(), feature_ids.end());
-  feature_ids.erase(unique(feature_ids.begin(), feature_ids.end()),
-                      feature_ids.end());
 
   gradient_pull->resize(feature_ids.size());
   LOG(INFO) << "waiting for pull params" << std::endl;
