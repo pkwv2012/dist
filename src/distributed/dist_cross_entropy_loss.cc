@@ -32,8 +32,8 @@ namespace xLearn {
 
 static void pred_thread(const DMatrix* data_matrix,
                         Model* model,
-                        std::map<index_t, real_t>& w,
-                        std::map<index_t, std::vector<real_t>>& v,
+                        std::unordered_map<index_t, real_t>& w,
+                        std::unordered_map<index_t, std::vector<real_t>>& v,
                         std::vector<real_t>* pred,
                         DistScore* dist_score_func,
                         bool is_norm,
@@ -54,8 +54,8 @@ void DistCrossEntropyLoss::Predict(const DMatrix* data_matrix,
   size_t row_len = data_matrix->row_length;
   auto gradient_pull = std::make_shared<std::vector<float>>();
   auto v_pull = std::make_shared<std::vector<float>>();
-  std::map<index_t, real_t> weight_map;
-  std::map<index_t, std::vector<real_t>> v_map;
+  std::unordered_map<index_t, real_t> weight_map;
+  std::unordered_map<index_t, std::vector<real_t>> v_map;
   for (index_t i = 0; i < row_len; ++i) {
     SparseRow* row = data_matrix->row[i];
     for (SparseRow::const_iterator iter = row->begin();
@@ -158,13 +158,13 @@ void DistCrossEntropyLoss::Evalute(const std::vector<real_t>& pred,
 // Calculate gradient in one thread.
 static void ce_gradient_thread(const DMatrix* matrix,
                                Model* model,
-                               std::map<index_t, real_t>& w,
-                               std::map<index_t, std::vector<real_t>>& v,
+                               std::unordered_map<index_t, real_t>& w,
+                               std::unordered_map<index_t, std::vector<real_t>>& v,
                                DistScore* dist_score_func,
                                bool is_norm,
                                real_t* sum,
-                               std::map<index_t, real_t>& w_g,
-                               std::map<index_t, std::vector<real_t>>& v_g,
+                               std::unordered_map<index_t, real_t>& w_g,
+                               std::unordered_map<index_t, std::vector<real_t>>& v_g,
                                size_t start_idx,
                                size_t end_idx) {
   CHECK_GE(end_idx, start_idx);
@@ -193,11 +193,11 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
   auto feature_set = std::unordered_set<ps::Key>();
   auto gradient_pull = std::make_shared<std::vector<float>>();
   auto v_pull = std::make_shared<std::vector<float>>();
-  std::map<index_t, real_t> weight_map;
-  std::map<index_t, std::vector<real_t>> v_map;
+  std::unordered_map<index_t, real_t> weight_map;
+  std::unordered_map<index_t, std::vector<real_t>> v_map;
 
-  std::map<index_t, real_t> gradient_push_map;
-  std::map<index_t, std::vector<real_t>> v_push_map;
+  std::unordered_map<index_t, real_t> gradient_push_map;
+  std::unordered_map<index_t, std::vector<real_t>> v_push_map;
 
   auto gradient_push = std::make_shared<std::vector<float>>();
   auto v_push = std::make_shared<std::vector<float>>();

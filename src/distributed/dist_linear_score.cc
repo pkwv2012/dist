@@ -27,8 +27,8 @@ namespace xLearn {
 // y = wTx (incluing bias term)
 real_t DistLinearScore::CalcScore(const SparseRow* row,
                                   Model& model,
-                                  std::map<index_t, real_t>* weight,
-                                  std::map<index_t, std::vector<real_t>>* v,
+                                  std::unordered_map<index_t, real_t>* weight,
+                                  std::unordered_map<index_t, std::vector<real_t>>* v,
                                   real_t norm) {
   real_t score = 0.0;
   for (SparseRow::const_iterator iter = row->begin();
@@ -42,11 +42,11 @@ real_t DistLinearScore::CalcScore(const SparseRow* row,
 // Calculate gradient and update current model
 void DistLinearScore::DistCalcGrad(const DMatrix* matrix,
                             Model& model,
-                           std::map<index_t, real_t>& w,
-                           std::map<index_t, std::vector<real_t>>& v,
+                           std::unordered_map<index_t, real_t>& w,
+                           std::unordered_map<index_t, std::vector<real_t>>& v,
                            real_t* sum,
-                           std::map<index_t, real_t>& w_g,
-                           std::map<index_t, std::vector<real_t>>& v_g,
+                           std::unordered_map<index_t, real_t>& w_g,
+                           std::unordered_map<index_t, std::vector<real_t>>& v_g,
                            index_t start_idx,
                            index_t end_idx) {
   // Using sgd
@@ -66,11 +66,11 @@ void DistLinearScore::DistCalcGrad(const DMatrix* matrix,
 // Calculate gradient and update current model using sgd
 void DistLinearScore::calc_grad_sgd(const DMatrix* matrix,
                                     Model& model,
-                                std::map<index_t, real_t>& w,
-                                std::map<index_t, std::vector<real_t>>& v,
+                                std::unordered_map<index_t, real_t>& w,
+                                std::unordered_map<index_t, std::vector<real_t>>& v,
                                 real_t* sum,
-                                std::map<index_t, real_t>& g,
-                                std::map<index_t, std::vector<real_t>>& v_g,
+                                std::unordered_map<index_t, real_t>& g,
+                                std::unordered_map<index_t, std::vector<real_t>>& v_g,
                                 real_t start_idx,
                                 real_t end_idx) {
   // linear term
@@ -93,11 +93,11 @@ void DistLinearScore::calc_grad_sgd(const DMatrix* matrix,
 // Calculate gradient and update current model using adagrad
 void DistLinearScore::calc_grad_adagrad(const DMatrix* matrix,
                                         Model& model,
-                                    std::map<index_t, real_t>& w,
-                                    std::map<index_t, std::vector<real_t>>& v,
+                                    std::unordered_map<index_t, real_t>& w,
+                                    std::unordered_map<index_t, std::vector<real_t>>& v,
                                     real_t* sum,
-                                    std::map<index_t, real_t>& g,
-                                    std::map<index_t, std::vector<real_t>>& v_g,
+                                    std::unordered_map<index_t, real_t>& g,
+                                    std::unordered_map<index_t, std::vector<real_t>>& v_g,
                                     real_t start_idx,
                                     real_t end_idx) {
   // linear term
@@ -120,11 +120,11 @@ void DistLinearScore::calc_grad_adagrad(const DMatrix* matrix,
 // Calculate gradient and update current model using ftrl
 void DistLinearScore::calc_grad_ftrl(const DMatrix* matrix,
                                  Model& model,
-                                 std::map<index_t, real_t>& w,
-                                 std::map<index_t, std::vector<real_t>>& v,
+                                 std::unordered_map<index_t, real_t>& w,
+                                 std::unordered_map<index_t, std::vector<real_t>>& v,
                                  real_t* sum,
-                                 std::map<index_t, real_t>& g,
-                                 std::map<index_t, std::vector<real_t>>& v_g,
+                                 std::unordered_map<index_t, real_t>& g,
+                                 std::unordered_map<index_t, std::vector<real_t>>& v_g,
                                  real_t start_idx,
                                  real_t end_idx) {
   for (index_t i = start_idx; i < end_idx; ++i) {

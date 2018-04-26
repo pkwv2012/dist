@@ -30,8 +30,8 @@ namespace xLearn {
 // Using SSE to accelerate vector operation.
 real_t DistFMScore::CalcScore(const SparseRow* row,
       Model& model,
-      std::map<index_t, real_t>* weight,
-      std::map<index_t, std::vector<real_t>>* v,
+      std::unordered_map<index_t, real_t>* weight,
+      std::unordered_map<index_t, std::vector<real_t>>* v,
       real_t norm) {
   /*********************************************************
    *  linear term and bias term                            *
@@ -91,11 +91,11 @@ real_t DistFMScore::CalcScore(const SparseRow* row,
 // Using SSE to accelerate vector operation.
 void DistFMScore::DistCalcGrad(const DMatrix* matrix,
     Model& model,
-    std::map<index_t, real_t>& w,
-    std::map<index_t, std::vector<real_t>>& v,
+    std::unordered_map<index_t, real_t>& w,
+    std::unordered_map<index_t, std::vector<real_t>>& v,
     real_t* sum,
-    std::map<index_t, real_t>& w_g,
-    std::map<index_t, std::vector<real_t>>& v_g,
+    std::unordered_map<index_t, real_t>& w_g,
+    std::unordered_map<index_t, std::vector<real_t>>& v_g,
     index_t start_idx,
     index_t end_idx
     ) {
@@ -116,11 +116,11 @@ void DistFMScore::DistCalcGrad(const DMatrix* matrix,
 // Calculate gradient and update current model using sgd
 void DistFMScore::calc_grad_sgd(const DMatrix* matrix,
     Model& model,
-    std::map<index_t, real_t>& weight,
-    std::map<index_t, std::vector<real_t>>& v,
+    std::unordered_map<index_t, real_t>& weight,
+    std::unordered_map<index_t, std::vector<real_t>>& v,
     real_t* sum,
-    std::map<index_t, real_t>& w_g,
-    std::map<index_t, std::vector<real_t>>& v_g,
+    std::unordered_map<index_t, real_t>& w_g,
+    std::unordered_map<index_t, std::vector<real_t>>& v_g,
     index_t start_idx,
     index_t end_idx
     ) {
@@ -180,11 +180,11 @@ void DistFMScore::calc_grad_sgd(const DMatrix* matrix,
 // Calculate gradient and update current model using adagrad
 void DistFMScore::calc_grad_adagrad(const DMatrix* matrix,
     Model& model,
-    std::map<index_t, real_t>& weight,
-    std::map<index_t, std::vector<real_t>>& v,
+    std::unordered_map<index_t, real_t>& weight,
+    std::unordered_map<index_t, std::vector<real_t>>& v,
     real_t* sum,
-    std::map<index_t, real_t>& w_g,
-    std::map<index_t, std::vector<real_t>>& v_g,
+    std::unordered_map<index_t, real_t>& w_g,
+    std::unordered_map<index_t, std::vector<real_t>>& v_g,
     index_t start_idx,
     index_t end_idx
     ) {
@@ -245,11 +245,11 @@ void DistFMScore::calc_grad_adagrad(const DMatrix* matrix,
 // Calculate gradient and update current model using ftrl
 void DistFMScore::calc_grad_ftrl(const DMatrix* matrix,
     Model& model,
-    std::map<index_t, real_t>& w,
-    std::map<index_t, std::vector<real_t>>& v,
+    std::unordered_map<index_t, real_t>& w,
+    std::unordered_map<index_t, std::vector<real_t>>& v,
     real_t* sum,
-    std::map<index_t, real_t>& w_g,
-    std::map<index_t, std::vector<real_t>>& v_g,
+    std::unordered_map<index_t, real_t>& w_g,
+    std::unordered_map<index_t, std::vector<real_t>>& v_g,
     index_t start_idx,
     index_t end_idx
     ) {
