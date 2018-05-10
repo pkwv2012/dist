@@ -48,7 +48,7 @@ struct KVServerSGDHandle {
     for (size_t i = 0; i < keys_size; ++i) {
       ps::Key key = req_data.keys[i];
       if (store_.find(key) == store_.end()) {
-        store_[key] = SGDEntry();
+        store_[key] = SGDEntry(v_dim_);
       }
       SGDEntry& val = store_[key];
       if (req_meta.push) {

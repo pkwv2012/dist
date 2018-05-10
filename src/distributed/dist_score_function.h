@@ -60,7 +60,7 @@ class DistScore {
                           real_t beta,
                           real_t lambda_1,
                           real_t lambda_2,
-                          std::string& opt_type) {
+                          const std::string& opt_type) {
     learning_rate_ = learning_rate;
     regu_lambda_ = regu_lambda;
     alpha_ = alpha;
@@ -87,6 +87,10 @@ class DistScore {
                                std::unordered_map<index_t, std::vector<real_t>>& v_g,
                                index_t start_idx,
                                index_t end_idx) = 0;
+
+  std::string GetOptType() const {
+    return opt_type_;
+  }
 
  protected:
   real_t learning_rate_;

@@ -82,7 +82,7 @@ Reader* DistSolver::create_reader() {
 // Create Score by a given string
 DistScore* DistSolver::create_score() {
   DistScore* dist_score;
-  dist_score = CREATE_DIST_SCORE("dist_linear");
+  dist_score = CREATE_DIST_SCORE(hyper_param_.score_func.c_str());
   if (dist_score == nullptr) {
     LOG(FATAL) << "Cannot create score: "
                << hyper_param_.score_func;

@@ -100,6 +100,7 @@ void DistFMScore::DistCalcGrad(const DMatrix* matrix,
     index_t end_idx
     ) {
   // Using sgd
+  LOG(INFO) << "opt_type=" << opt_type_ << std::endl;
   if (opt_type_.compare("sgd") == 0) {
     this->calc_grad_sgd(matrix, model, w, v, sum, w_g, v_g, start_idx, end_idx);
   }
@@ -124,6 +125,7 @@ void DistFMScore::calc_grad_sgd(const DMatrix* matrix,
     index_t start_idx,
     index_t end_idx
     ) {
+  LOG(INFO) << "dist_fm_score" << std::endl;
   for (index_t i = start_idx; i < end_idx; ++i) {
     SparseRow* row = matrix->row[i];
     real_t pred = CalcScore(row, model, &weight, &v);

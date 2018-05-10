@@ -168,6 +168,9 @@ static void ce_gradient_thread(const DMatrix* matrix,
                                size_t start_idx,
                                size_t end_idx) {
   CHECK_GE(end_idx, start_idx);
+  CHECK_NOTNULL(dist_score_func);
+  LOG(INFO) << "ce_gradient_thread" << std::endl;
+  LOG(INFO) << dist_score_func->GetOptType() << std::endl;
   dist_score_func->DistCalcGrad(matrix, *model, w, v, sum, w_g, v_g, start_idx, end_idx);
 }
 
@@ -201,6 +204,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
 
   auto gradient_push = std::make_shared<std::vector<float>>();
   auto v_push = std::make_shared<std::vector<float>>();
+  LOG(INFO) << "score func " << model.GetScoreFunction() << std::endl;
   LOG(INFO) << "prepare info" << std::endl;
   for (index_t i = 0; i < row_len; ++i) {
     SparseRow* row = matrix->row[i];
@@ -239,6 +243,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
       vec_k.push_back((*v_pull)[i * model.GetNumK() + j]);
     }
     v_map[idx] = vec_k;
+    v_push_map[idx] = std::vector<real_t>(model.GetNumK(), 0.0);
   }
   // multi-thread training
   LOG(INFO) << "multi-thread training" << std::endl;
@@ -276,7 +281,7 @@ void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
   for (int i = 0; i < feature_ids.size(); ++i) {
     index_t idx = feature_ids[i];
     for (int j = 0; j < v_push_map[idx].size(); ++j) {
-      v_push->push_back(v_push_map[idx][j]);
+      (*v_push)[i * model.GetNumK() + j] = v_push_map[idx][j];
     }
   }
   if (model.GetScoreFunction().compare("fm") == 0 ||
