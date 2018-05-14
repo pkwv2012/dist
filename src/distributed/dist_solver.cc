@@ -449,7 +449,7 @@ void DistSolver::init_predict() {
 
 // Start training or inference
 void DistSolver::StartWork() {
-  ps::Postoffice::Get()->SetServerKeyRanges(hyper_param_.num_feature);
+  ps::Postoffice::Get()->SetServerKeyRanges(hyper_param_.num_feature + 1);
   if (hyper_param_.is_train) {
     LOG(INFO) << "Start training work.";
     start_train_work();
