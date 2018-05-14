@@ -47,59 +47,76 @@ static void pred_thread(const DMatrix* data_matrix,
   }
 }
 
-void DistCrossEntropyLoss::Predict(const DMatrix* data_matrix,
-                                   Model& model,
-                                   std::vector<real_t>& pred) {
-  auto feature_ids = std::vector<ps::Key>();
-  size_t row_len = data_matrix->row_length;
+static void mini_batch_pred_thread(const DMatrix* data_matrix,
+                                   Model* model,
+                                   std::vector<real_t>* pred,
+                                   DistScore* dist_score_func,
+                                   bool is_norm,
+                                   size_t start_idx,
+                                   size_t end_idx,
+                                   int thread_id) {
+  LOG(INFO) << "mini_batch_pred_thread||thread_id=" << thread_id << std::endl;
+  std::vector<ps::Key> feature_ids = data_matrix->GetSortedUniqueIndex<ps::Key>(start_idx, end_idx);
   auto gradient_pull = std::make_shared<std::vector<float>>();
   auto v_pull = std::make_shared<std::vector<float>>();
   std::unordered_map<index_t, real_t> weight_map;
   std::unordered_map<index_t, std::vector<real_t>> v_map;
-  for (index_t i = 0; i < row_len; ++i) {
-    SparseRow* row = data_matrix->row[i];
-    for (SparseRow::const_iterator iter = row->begin();
-        iter != row->end(); ++iter) {
-      index_t idx = iter->feat_id;
-      feature_ids.push_back(idx);
-      weight_map[idx] = 0.0;
-    }
-  }
-  std::sort(feature_ids.begin(), feature_ids.end());
-  feature_ids.erase(unique(feature_ids.begin(), feature_ids.end()),
-                    feature_ids.end());
+
+  LOG(INFO) << "score func " << model->GetScoreFunction() << std::endl;
+  LOG(INFO) << "prepare info" << std::endl;
+
   gradient_pull->resize(feature_ids.size());
+  LOG(INFO) << "waiting for pull params" << std::endl;
+  auto kv_w_ = std::make_shared<ps::KVWorker<float>>(0, thread_id);
   kv_w_->Wait(kv_w_->Pull(feature_ids, &(*gradient_pull)));
-  v_pull->resize(feature_ids.size() * model.GetNumK());
-  if (model.GetScoreFunction().compare("fm") == 0 ||
-      model.GetScoreFunction().compare("ffm") == 0) {
+  v_pull->resize(feature_ids.size() * model->GetNumK());
+  auto kv_v_ = std::make_shared<ps::KVWorker<float>>(1, thread_id);
+  if (model->GetScoreFunction().compare("fm") == 0 ||
+      model->GetScoreFunction().compare("ffm") == 0) {
     kv_v_->Wait(kv_v_->Pull(feature_ids, &(*v_pull)));
   }
+  LOG(INFO) << "got params" << std::endl;
   for (int i = 0; i < gradient_pull->size(); ++i) {
     index_t idx = feature_ids[i];
     real_t weight = (*gradient_pull)[i];
     weight_map[idx] = weight;
+  }
+  LOG(INFO) << "model NumK=" << model->GetNumK() << std::endl;
+  LOG(INFO) << "val size=" << v_pull->size() << std::endl;
+  for (int i = 0; i < feature_ids.size(); ++i) {
+    index_t idx = feature_ids[i];
     std::vector<real_t> vec_k;
-    for (int j = 0; j < model.GetNumK(); ++j) {
-      vec_k.push_back((*v_pull)[i * model.GetNumK() + j]);
+    for(int j = 0; j < model->GetNumK(); ++j) {
+      vec_k.push_back((*v_pull)[i * model->GetNumK() + j]);
     }
     v_map[idx] = vec_k;
   }
-  for (int i = 0; i < threadNumber_; ++i) {
-    size_t start_idx = getStart(row_len, threadNumber_, i);
-    size_t end_idx = getEnd(row_len, threadNumber_, i);
-    pool_->enqueue(std::bind(pred_thread,
-          data_matrix,
-          &model,
-          std::ref(weight_map),
-          std::ref(v_map),
-          &pred,
-          dist_score_func_,
-          norm_,
-          start_idx,
-          end_idx));
+  pred_thread(data_matrix, model, weight_map, v_map, pred, dist_score_func, is_norm, start_idx, end_idx);
+}
+
+void DistCrossEntropyLoss::Predict(const DMatrix* data_matrix,
+                                   Model& model,
+                                   std::vector<real_t>& pred) {
+  CHECK_NOTNULL(data_matrix);
+  CHECK_GT(data_matrix->row_length, 0);
+  int count = std::ceil(data_matrix->row_length * 1.0 / batch_size_);
+  for(int i = 0; i < count; ++ i) {
+    // Get a mini-batch from current data matrix
+    // Pull the model parameter from parameter server
+    int ti = i;
+    size_t start_idx = i * batch_size_;
+    size_t end_idx = std::min((i + 1) * batch_size_, data_matrix->row_length);
+    pool_->enqueue(std::bind(mini_batch_pred_thread,
+                             data_matrix,
+                             &model,
+                             &pred,
+                             dist_score_func_,
+                             norm_,
+                             start_idx,
+                             end_idx,
+                             ti));
   }
-  pool_->Sync(threadNumber_);
+  pool_->Sync(count);
 }
 
 // Calculate loss in one thread.
@@ -174,6 +191,79 @@ static void ce_gradient_thread(const DMatrix* matrix,
   dist_score_func->DistCalcGrad(matrix, *model, w, v, sum, w_g, v_g, start_idx, end_idx);
 }
 
+static void mini_batch_gradient_thread(const DMatrix *matrix,
+                        Model* model,
+                        DistScore* dist_score_func,
+                        bool is_norm,
+                        real_t* sum,
+                        int thread_id) {
+  std::vector<ps::Key> feature_ids = matrix->GetSortedUniqueIndex<ps::Key>();
+  auto gradient_pull = std::make_shared<std::vector<float>>();
+  auto v_pull = std::make_shared<std::vector<float>>();
+  std::unordered_map<index_t, real_t> weight_map;
+  std::unordered_map<index_t, std::vector<real_t>> v_map;
+
+  std::unordered_map<index_t, real_t> gradient_push_map;
+  std::unordered_map<index_t, std::vector<real_t>> v_push_map;
+
+  auto gradient_push = std::make_shared<std::vector<float>>();
+  auto v_push = std::make_shared<std::vector<float>>();
+  LOG(INFO) << "score func " << model->GetScoreFunction() << std::endl;
+  LOG(INFO) << "prepare info" << std::endl;
+
+  gradient_pull->resize(feature_ids.size());
+  LOG(INFO) << "waiting for pull params" << std::endl;
+  auto kv_w_ = std::make_shared<ps::KVWorker<float>>(0, thread_id);
+  kv_w_->Wait(kv_w_->Pull(feature_ids, &(*gradient_pull)));
+  v_pull->resize(feature_ids.size() * model->GetNumK());
+  auto kv_v_ = std::make_shared<ps::KVWorker<float>>(1, thread_id);
+  if (model->GetScoreFunction().compare("fm") == 0 ||
+      model->GetScoreFunction().compare("ffm") == 0) {
+    kv_v_->Wait(kv_v_->Pull(feature_ids, &(*v_pull)));
+  }
+  LOG(INFO) << "got params" << std::endl;
+  for (int i = 0; i < gradient_pull->size(); ++i) {
+    index_t idx = feature_ids[i];
+    real_t weight = (*gradient_pull)[i];
+    weight_map[idx] = weight;
+    gradient_push_map[idx] = 0.0;
+  }
+  LOG(INFO) << "model NumK=" << model->GetNumK() << std::endl;
+  LOG(INFO) << "val size=" << v_pull->size() << std::endl;
+  for (int i = 0; i < feature_ids.size(); ++i) {
+    index_t idx = feature_ids[i];
+    std::vector<real_t> vec_k;
+    for(int j = 0; j < model->GetNumK(); ++j) {
+      vec_k.push_back((*v_pull)[i * model->GetNumK() + j]);
+    }
+    v_map[idx] = vec_k;
+    v_push_map[idx] = std::vector<real_t>(model->GetNumK(), 0.0);
+  }
+  ce_gradient_thread(matrix, model, weight_map, v_map, dist_score_func,
+                     is_norm, sum, gradient_push_map, v_push_map, 0, matrix->row_length);
+  gradient_push->resize(feature_ids.size());
+  for (int i = 0; i < feature_ids.size(); ++i) {
+    index_t idx = feature_ids[i];
+    real_t g = gradient_push_map[idx];
+    (*gradient_push)[i] = g;
+  }
+  LOG(INFO) << "push params" << std::endl;
+  kv_w_->Wait(kv_w_->Push(feature_ids, *gradient_push));
+  LOG(INFO) << "finish push w" << std::endl;
+  v_push->resize(feature_ids.size() * model->GetNumK());
+  for (int i = 0; i < feature_ids.size(); ++i) {
+    index_t idx = feature_ids[i];
+    for (int j = 0; j < v_push_map[idx].size(); ++j) {
+      (*v_push)[i * model->GetNumK() + j] = v_push_map[idx][j];
+    }
+  }
+  if (model->GetScoreFunction().compare("fm") == 0 ||
+      model->GetScoreFunction().compare("ffm") == 0) {
+    kv_v_->Wait(kv_v_->Push(feature_ids, *v_push));
+  }
+  LOG(INFO) << "finish push v" << std::endl;
+}
+
 //------------------------------------------------------------------------------
 // Calculate gradient in multi-thread
 //
@@ -187,109 +277,38 @@ static void ce_gradient_thread(const DMatrix* matrix,
 //                       \       |        /
 //                         master_thread
 //------------------------------------------------------------------------------
-void DistCrossEntropyLoss::CalcGrad(const DMatrix* matrix,
+void DistCrossEntropyLoss::CalcGrad(DMatrix* matrix,
                                     Model& model) {
   CHECK_NOTNULL(matrix);
   CHECK_GT(matrix->row_length, 0);
   size_t row_len = matrix->row_length;
   total_example_ += row_len;
-  auto feature_set = std::unordered_set<ps::Key>();
-  auto gradient_pull = std::make_shared<std::vector<float>>();
-  auto v_pull = std::make_shared<std::vector<float>>();
-  std::unordered_map<index_t, real_t> weight_map;
-  std::unordered_map<index_t, std::vector<real_t>> v_map;
-
-  std::unordered_map<index_t, real_t> gradient_push_map;
-  std::unordered_map<index_t, std::vector<real_t>> v_push_map;
-
-  auto gradient_push = std::make_shared<std::vector<float>>();
-  auto v_push = std::make_shared<std::vector<float>>();
-  LOG(INFO) << "score func " << model.GetScoreFunction() << std::endl;
-  LOG(INFO) << "prepare info" << std::endl;
-  for (index_t i = 0; i < row_len; ++i) {
-    SparseRow* row = matrix->row[i];
-    for (SparseRow::const_iterator iter = row->begin();
-         iter != row->end(); ++iter) {
-      index_t idx = iter->feat_id;
-      feature_set.insert(idx);
-      // feature_ids.push_back(idx);
-      weight_map[idx] = 0.0;
+  int count = std::ceil(matrix->row_length * 1.0 / batch_size_);
+  std::vector<real_t > sum(count, 0.0);
+  std::vector<DMatrix> mini_batch_list(count);
+  for(int i = 0; i < count; ++ i) {
+    // Get a mini-batch from current data matrix
+    DMatrix& mini_batch = mini_batch_list[i];
+    mini_batch.ResetMatrix(batch_size_);
+    index_t len = matrix->GetMiniBatch(batch_size_, mini_batch);
+    if (len == 0) {
+      break;
     }
-  }
-  auto feature_ids = std::vector<ps::Key>(feature_set.begin(), feature_set.end());
-  std::sort(feature_ids.begin(), feature_ids.end());
-
-  gradient_pull->resize(feature_ids.size());
-  LOG(INFO) << "waiting for pull params" << std::endl;
-  kv_w_->Wait(kv_w_->Pull(feature_ids, &(*gradient_pull)));
-  LOG(INFO) << "got params" << std::endl;
-  v_pull->resize(feature_ids.size() * model.GetNumK());
-  if (model.GetScoreFunction().compare("fm") == 0 ||
-      model.GetScoreFunction().compare("ffm") == 0) {
-    kv_v_->Wait(kv_v_->Pull(feature_ids, &(*v_pull)));
-  }
-  for (int i = 0; i < gradient_pull->size(); ++i) {
-    index_t idx = feature_ids[i];
-    real_t weight = (*gradient_pull)[i];
-    weight_map[idx] = weight;
-    gradient_push_map[idx] = 0.0;
-  }
-  LOG(INFO) << "model NumK=" << model.GetNumK() << std::endl;
-  LOG(INFO) << "val size=" << v_pull->size() << std::endl;
-  for (int i = 0; i < feature_ids.size(); ++i) {
-    index_t idx = feature_ids[i];
-    std::vector<real_t> vec_k;
-    for(int j = 0; j < model.GetNumK(); ++j) {
-      vec_k.push_back((*v_pull)[i * model.GetNumK() + j]);
-    }
-    v_map[idx] = vec_k;
-    v_push_map[idx] = std::vector<real_t>(model.GetNumK(), 0.0);
-  }
-  // multi-thread training
-  LOG(INFO) << "multi-thread training" << std::endl;
-  int count = lock_free_ ? threadNumber_ : 1;
-  std::vector<real_t> sum(count, 0);
-  for (int i = 0; i < count; ++i) {
-    index_t start_idx = getStart(row_len, count, i);
-    index_t end_idx = getEnd(row_len, count, i);
-    pool_->enqueue(std::bind(ce_gradient_thread,
-                             matrix,
+    mini_batch.row_length = len;
+    // Pull the model parameter from parameter server
+    // Calculate gradient
+    // Push gradient to the parameter server
+    int ti = i;
+    pool_->enqueue(std::bind(mini_batch_gradient_thread,
+                             &mini_batch,
                              &model,
-                             std::ref(weight_map),
-                             std::ref(v_map),
-                             dist_score_func_,
-                             norm_,
-                             &(sum[i]),
-                             std::ref(gradient_push_map),
-                             std::ref(v_push_map),
-                             start_idx,
-                             end_idx));
+                             this->dist_score_func_,
+                             this->norm_,
+                             &(sum[ti]),
+                             ti));
   }
-  // Wait all of the threads finish their job
-  LOG(INFO) << "wait for training finish" << std::endl;
   pool_->Sync(count);
-  gradient_push->resize(feature_ids.size());
-  for (int i = 0; i < feature_ids.size(); ++i) {
-    index_t idx = feature_ids[i];
-    real_t g = gradient_push_map[idx];
-    (*gradient_push)[i] = g;
-  }
-  LOG(INFO) << "push params" << std::endl;
-  kv_w_->Wait(kv_w_->Push(feature_ids, *gradient_push));
-  LOG(INFO) << "finish push w" << std::endl;
-  v_push->resize(feature_ids.size() * model.GetNumK());
-  for (int i = 0; i < feature_ids.size(); ++i) {
-    index_t idx = feature_ids[i];
-    for (int j = 0; j < v_push_map[idx].size(); ++j) {
-      (*v_push)[i * model.GetNumK() + j] = v_push_map[idx][j];
-    }
-  }
-  if (model.GetScoreFunction().compare("fm") == 0 ||
-      model.GetScoreFunction().compare("ffm") == 0) {
-    kv_v_->Wait(kv_v_->Push(feature_ids, *v_push));
-  }
-  LOG(INFO) << "finish push v" << std::endl;
-  // Accumulate loss
+ // Accumulate loss
   for (int i = 0; i < sum.size(); ++i) {
     loss_sum_ += sum[i];
   }

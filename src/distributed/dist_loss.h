@@ -73,15 +73,16 @@ namespace xLearn {
 class DistLoss {
  public:
   // Constructor and Desstructor
-  DistLoss() : loss_sum_(0), total_example_(0){ 
-    kv_w_ = new ps::KVWorker<float>(0);
-    kv_v_ = new ps::KVWorker<float>(1);
+  DistLoss() : loss_sum_(0), total_example_(0){
+    //kv_w_ = new ps::KVWorker<float>(0, 0);
+    //kv_v_ = new ps::KVWorker<float>(1, 0);
   };
   virtual ~DistLoss() { }
 
   // This function needs to be invoked before using this class
   void DistInitialize(DistScore* score,
                   ThreadPool* pool,
+                  index_t batch_size = 512,
                   bool norm = true,
                   bool lock_free = false) {
     CHECK_NOTNULL(score);
@@ -91,6 +92,7 @@ class DistLoss {
     norm_ = norm;
     threadNumber_ = pool_->ThreadNumber();
     lock_free_ = lock_free;
+    batch_size_ = batch_size;
   }
 
   // Given predictions and labels, accumulate loss value.
@@ -105,7 +107,7 @@ class DistLoss {
   // Given data sample and current model, calculate gradient
   // and update current model parameters.
   // This function will also acummulate loss value.
-  virtual void CalcGrad(const DMatrix* data_matrix, 
+  virtual void CalcGrad(DMatrix* data_matrix,
                         Model& model) = 0;
 
   // Return the calculated loss value
@@ -138,10 +140,12 @@ class DistLoss {
   real_t loss_sum_;
   /* Used to store the number of example */
   index_t total_example_;
+  /* Mini-batch Size */
+  index_t batch_size_;
   /* kv store for w */
-  ps::KVWorker<float>* kv_w_;
+  //ps::KVWorker<float>* kv_w_;
   /* kv store for v */
-  ps::KVWorker<float>* kv_v_;
+  //ps::KVWorker<float>* kv_v_;
 
 
  private:
