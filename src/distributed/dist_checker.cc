@@ -118,7 +118,14 @@ std::string DistChecker::option_help() const {
 "  -lambda_1            :  Used by ftrl. \n"
 "                                        \n"
 "  -lambda_2            :  Used by ftrl. \n"
-"  --batch-size         :  the size of mini-batch used for distributed training\n"
+"                                        \n"
+"  --batch-size         :  The size of mini-batch used for distributed training\n"
+"                                        \n"
+"  --num-features       :  The number of features used for estimating the features of data, \n"
+"                          must greater than the real number of features\n"
+"                                        \n"
+"  --num-feilds         :  The number of field used for estimating the fields of data,\n"
+"                          must greater than the real number of fields\n"
 "----------------------------------------------------------------------------------------------\n"
     );
   } else {
@@ -169,6 +176,8 @@ void DistChecker::Initialize(bool is_train, int argc, char* argv[]) {
     menu_.push_back(std::string("-lambda_1"));
     menu_.push_back(std::string("-lambda_2"));
     menu_.push_back(std::string("--batch-size"));
+    menu_.push_back(std::string("--num-features"));
+    menu_.push_back(std::string("--num-field"));
   } else {  // for Prediction
     menu_.push_back(std::string("-o"));
     menu_.push_back(std::string("-l"));
@@ -502,6 +511,26 @@ bool DistChecker::check_train_options(HyperParam& hyper_param) {
         bo = false;
       } else {
         hyper_param.batch_size = value;
+      }
+      i += 2;
+    } else if (list[i].compare("--num-features") == 0) {
+      int value = atoi(list[i+1].c_str());
+      if (value < 0) {
+        StringPrintf("Illegal --num-features: '%d'."
+                     "--num-features cannot be less than zero.", value);
+        bo = false;
+      } else {
+        hyper_param.num_feature = value;
+      }
+      i += 2;
+    } else if (list[i].compare("--num-fields") == 0) {
+      int value = atoi(list[i+1].c_str());
+      if (value < 0) {
+        StringPrintf("Illegal --num-fields: '%d'."
+                     "--num-fields cannot be less than zero", value);
+        bo = false;
+      } else {
+        hyper_param.num_field = value;
       }
       i += 2;
     } else {  // no match

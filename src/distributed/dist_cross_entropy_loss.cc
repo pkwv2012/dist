@@ -69,7 +69,10 @@ static void mini_batch_pred_thread(const DMatrix* data_matrix,
   LOG(INFO) << "waiting for pull params" << std::endl;
   auto kv_w_ = std::make_shared<ps::KVWorker<float>>(0, thread_id);
   kv_w_->Wait(kv_w_->Pull(feature_ids, &(*gradient_pull)));
-  v_pull->resize(feature_ids.size() * model->GetNumK());
+  int num_K = model->GetNumK();
+  int num_field = model->GetNumField();
+  int len = num_field * num_K;
+  v_pull->resize(feature_ids.size() * len);
   auto kv_v_ = std::make_shared<ps::KVWorker<float>>(1, thread_id);
   if (model->GetScoreFunction().compare("fm") == 0 ||
       model->GetScoreFunction().compare("ffm") == 0) {
@@ -215,10 +218,12 @@ static void mini_batch_gradient_thread(const DMatrix *matrix,
   LOG(INFO) << "waiting for pull params" << std::endl;
   auto kv_w_ = std::make_shared<ps::KVWorker<float>>(0, thread_id);
   kv_w_->Wait(kv_w_->Pull(feature_ids, &(*gradient_pull)));
-  v_pull->resize(feature_ids.size() * model->GetNumK());
   auto kv_v_ = std::make_shared<ps::KVWorker<float>>(1, thread_id);
-  if (model->GetScoreFunction().compare("fm") == 0 ||
-      model->GetScoreFunction().compare("ffm") == 0) {
+  if (model->GetScoreFunction().compare("fm") == 0) {
+    v_pull->resize(feature_ids.size() * model->GetNumK());
+    kv_v_->Wait(kv_v_->Pull(feature_ids, &(*v_pull)));
+  } else if (model->GetScoreFunction().compare("ffm") == 0) {
+    v_pull->resize(feature_ids.size() * model->GetNumK() * model->GetNumField());
     kv_v_->Wait(kv_v_->Pull(feature_ids, &(*v_pull)));
   }
   LOG(INFO) << "got params" << std::endl;
@@ -230,14 +235,21 @@ static void mini_batch_gradient_thread(const DMatrix *matrix,
   }
   LOG(INFO) << "model NumK=" << model->GetNumK() << std::endl;
   LOG(INFO) << "val size=" << v_pull->size() << std::endl;
+  int num_field = model->GetScoreFunction().compare("ffm") == 0
+                  ? model->GetNumField()
+                  : 1;
+  int num_k = model->GetScoreFunction().compare("linear") == 0
+              ? 0
+              : model->GetNumK();
+  int len = num_field * num_k;
   for (int i = 0; i < feature_ids.size(); ++i) {
     index_t idx = feature_ids[i];
     std::vector<real_t> vec_k;
-    for(int j = 0; j < model->GetNumK(); ++j) {
-      vec_k.push_back((*v_pull)[i * model->GetNumK() + j]);
+    for(int j = 0; j < len; ++j) {
+      vec_k.push_back((*v_pull)[i * len + j]);
     }
     v_map[idx] = vec_k;
-    v_push_map[idx] = std::vector<real_t>(model->GetNumK(), 0.0);
+    v_push_map[idx] = std::vector<real_t>(len, 0.0);
   }
   ce_gradient_thread(matrix, model, weight_map, v_map, dist_score_func,
                      is_norm, sum, gradient_push_map, v_push_map, 0, matrix->row_length);
@@ -250,11 +262,11 @@ static void mini_batch_gradient_thread(const DMatrix *matrix,
   LOG(INFO) << "push params" << std::endl;
   kv_w_->Wait(kv_w_->Push(feature_ids, *gradient_push));
   LOG(INFO) << "finish push w" << std::endl;
-  v_push->resize(feature_ids.size() * model->GetNumK());
+  v_push->resize(feature_ids.size() * len);
   for (int i = 0; i < feature_ids.size(); ++i) {
     index_t idx = feature_ids[i];
     for (int j = 0; j < v_push_map[idx].size(); ++j) {
-      (*v_push)[i * model->GetNumK() + j] = v_push_map[idx][j];
+      (*v_push)[i * len + j] = v_push_map[idx][j];
     }
   }
   if (model->GetScoreFunction().compare("fm") == 0 ||

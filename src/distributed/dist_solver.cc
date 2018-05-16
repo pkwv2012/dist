@@ -267,14 +267,20 @@ void DistSolver::init_train() {
     // Return to the begining of target file.
     reader_[i]->Reset();
   }
-  hyper_param_.num_feature = max_feat + 1;
+  CHECK_GE(hyper_param_.num_feature, max_feat + 1) << "the '--num-features' must greater than "
+      "the real number of features";
+  // actually the num_feature should be set by '--num-features'
+  hyper_param_.num_feature = std::max(hyper_param_.num_feature, max_feat + 1);
   LOG(INFO) << "Number of feature: " << hyper_param_.num_feature;
   print_info(
     StringPrintf("Number of Feature: %d", 
                  hyper_param_.num_feature)
   );
   if (hyper_param_.score_func.compare("ffm") == 0) {
-    hyper_param_.num_field = max_field + 1;
+    CHECK_GE(hyper_param_.num_field, max_field + 1) << "the '--num-fields' must greater than "
+        "the real number of fields";
+    // actually the num_field should be set by '--num-fields'
+    hyper_param_.num_field = std::max(hyper_param_.num_field, max_field + 1);
     LOG(INFO) << "Number of field: " << hyper_param_.num_field;
     print_info(
       StringPrintf("Number of Field: %d", 

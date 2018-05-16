@@ -62,8 +62,8 @@ namespace xLearn {
       index_t j2 = iter_j->feat_id;
       index_t f2 = iter_j->field_id;
       real_t v2 = iter_j->feat_val;
-      real_t* w1_base = (*v)[j1].data();
-      real_t* w2_base = (*v)[j2].data();
+      real_t* w1_base = (*v)[j1].data() + f2*align0;
+      real_t* w2_base = (*v)[j2].data() + f1*align0;
       __m128 XMMv = _mm_set1_ps(v1*v2*norm);
       for (index_t d = 0; d < align0; d += align) {
         __m128 XMMw1 = _mm_load_ps(w1_base + d);
@@ -134,6 +134,7 @@ void DistFFMScore::calc_grad_sgd(const DMatrix* matrix,
       real_t g = pg*iter->feat_val;
       w_g[iter->feat_id] += g;
     }
+    // bias
     /*********************************************************
      *  latent factor                                        *
      *********************************************************/
@@ -142,20 +143,21 @@ void DistFFMScore::calc_grad_sgd(const DMatrix* matrix,
     index_t align = kAlign * model.GetAuxiliarySize();
     //w = model.GetParameter_v();
     __m128 XMMpg = _mm_set1_ps(pg);
-    __m128 XMMlr = _mm_set1_ps(learning_rate_);
+    // the learning rate should be used on the server, not the worker!
+    __m128 XMMlr = _mm_set1_ps(1.0);
     __m128 XMMlamb = _mm_set1_ps(regu_lambda_);
     for (SparseRow::const_iterator iter_i = row->begin();
         iter_i != row->end(); ++iter_i) {
       index_t j1 = iter_i->feat_id;
       index_t f1 = iter_i->field_id;
       real_t v1 = iter_i->feat_val;
-      real_t* w1_base = v[j1].data() + j1 * align1;
       for (SparseRow::const_iterator iter_j = iter_i+1;
           iter_j != row->end(); ++iter_j) {
         index_t j2 = iter_j->feat_id;
         index_t f2 = iter_j->field_id;
         real_t v2 = iter_j->feat_val;
-        real_t* w2_base = v[j2].data() + j2 * align1;
+        real_t* w1_base = v[j1].data() + f2*align0;
+        real_t* w2_base = v[j2].data() + f1*align0;
         __m128 XMMv = _mm_set1_ps(v1*v2);
         __m128 XMMpgv = _mm_mul_ps(XMMv, XMMpg);
         for (index_t d = 0; d < align0; d += align) {
