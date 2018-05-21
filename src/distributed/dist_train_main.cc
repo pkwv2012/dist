@@ -20,12 +20,11 @@ Author: Chao Ma (mctt90@gmail.com)
 This file is the entry for training of the xLearn.
 */
 
+#include <src/solver/solver.h>
 #include "src/base/common.h"
 #include "src/base/timer.h"
 #include "src/base/stringprintf.h"
-#include "src/distributed/dist_solver.h"
 #include "src/distributed/server.h"
-#include "src/distributed/worker.h"
 
 //------------------------------------------------------------------------------
 // The pre-defined main function
@@ -40,7 +39,7 @@ int main(int argc, char* argv[]) {
   if (ps::IsWorker()) {
     Timer timer;
     timer.tic();
-    xLearn::DistSolver dist_solver;
+    xLearn::Solver dist_solver;
     dist_solver.SetTrain();
     dist_solver.Initialize(argc, argv);
     dist_solver.StartWork();

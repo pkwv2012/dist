@@ -231,7 +231,12 @@ real_t Trainer::calc_gradient(std::vector<Reader*>& reader) {
     for (;;) {
       index_t tmp = reader[i]->Samples(matrix);
       if (tmp == 0) { break; }
-      loss_->CalcGrad(matrix, *model_);
+      if (is_distributed_) {
+        std::vector<real_t> pred;
+        loss_->CalcGradDist(matrix, *model_, pred);
+      } else {
+        loss_->CalcGrad(matrix, *model_);
+      }
     }
   }
   return loss_->GetLoss();

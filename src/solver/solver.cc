@@ -481,7 +481,8 @@ void Solver::start_train_work() {
                      loss_,
                      metric_,
                      early_stop,
-                     quiet);
+                     quiet,
+                     hyper_param_.is_distributed);
   print_action("Start to train ...");
 /******************************************************************************
  * Training under cross-validation                                            *
