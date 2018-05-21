@@ -49,7 +49,7 @@ class DistCrossEntropyLoss : public DistLoss {
   // Given data sample and current model, calculate gradient
   // and update current model parameters.
   // This function will also accumulate the loss value.
-  void CalcGrad(const DMatrix* data_matrix, Model& model);
+  void CalcGrad(DMatrix* data_matrix, Model& model);
   //void DistCalcGrad(const DMatrix& data_matrix, Model& model);
 
   // Return current loss type.

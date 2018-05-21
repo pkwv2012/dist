@@ -32,11 +32,11 @@ This file is the entry for training of the xLearn.
 //------------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
+  ps::Start(0);
   if (ps::IsServer()) {
     xlearn::XLearnServer* server = new xlearn::XLearnServer(argc, argv);
   }
 
-  ps::Start();
   if (ps::IsWorker()) {
     Timer timer;
     timer.tic();
@@ -49,7 +49,6 @@ int main(int argc, char* argv[]) {
       StringPrintf("Total time cost: %.2f (sec)", 
       timer.toc()), false);
   }
-  ps::Finalize();
-
+  ps::Finalize(0);
   return 0;
 }

@@ -82,7 +82,7 @@ Reader* DistSolver::create_reader() {
 // Create Score by a given string
 DistScore* DistSolver::create_score() {
   DistScore* dist_score;
-  dist_score = CREATE_DIST_SCORE("dist_linear");
+  dist_score = CREATE_DIST_SCORE(hyper_param_.score_func.c_str());
   if (dist_score == nullptr) {
     LOG(FATAL) << "Cannot create score: "
                << hyper_param_.score_func;
@@ -334,7 +334,7 @@ void DistSolver::init_train() {
    *  Initialize loss function                             *
    *********************************************************/
   dist_loss_ = create_loss();
-  dist_loss_->DistInitialize(dist_score_, pool_, 
+  dist_loss_->DistInitialize(dist_score_, pool_, hyper_param_.batch_size,
          hyper_param_.norm, 
          hyper_param_.lock_free);
   LOG(INFO) << "Initialize loss function.";
@@ -449,6 +449,7 @@ void DistSolver::init_predict() {
 
 // Start training or inference
 void DistSolver::StartWork() {
+  ps::Postoffice::Get()->SetServerKeyRanges(hyper_param_.num_feature);
   if (hyper_param_.is_train) {
     LOG(INFO) << "Start training work.";
     start_train_work();

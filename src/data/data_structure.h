@@ -23,8 +23,11 @@ This file defines the basic data structures used by xLearn.
 #ifndef XLEARN_DATA_DATA_STRUCTURE_H_
 #define XLEARN_DATA_DATA_STRUCTURE_H_
 
+#include <algorithm>
+#include <climits>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "src/base/common.h"
 #include "src/base/file_util.h"
@@ -299,6 +302,7 @@ struct DMatrix {
     // Copy mini-batch
     for (index_t i = 0; i < batch_size; ++i) {
       if (this->pos >= this->row_length) {
+        this->pos = 0;
         return i;
       }
       mini_batch.row[i] = this->row[pos];
@@ -307,6 +311,25 @@ struct DMatrix {
       this->pos++;
     }
     return batch_size;
+  }
+
+  // Get the unique index vector of this data matrix
+  template <class V>
+  std::vector<V> GetSortedUniqueIndex(int start_idx = 0, int end_idx = INT_MAX) const {
+    std::unordered_set<V> index_set;
+    end_idx = std::min(end_idx, (int)this->row_length);
+    for (int i = 0; i < this->row_length; ++ i) {
+      if (i % 10000 == 0) {
+        LOG(INFO) << "GetSortedUniqueIndex||i=" << i << std::endl;
+      }
+      SparseRow* row_i = this->row[i];
+      for (auto j = row_i->begin(); j != row_i->end(); ++ j) {
+        index_set.insert(static_cast<V>(j->feat_id));
+      }
+    }
+    auto indexVec = std::vector<V>(index_set.begin(), index_set.end());
+    std::sort(indexVec.begin(), indexVec.end());
+    return indexVec;
   }
 
   // Serialize current DMatrix to disk file.

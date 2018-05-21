@@ -18,7 +18,7 @@ float learning_rate = 0.1;
 
 int v_dim = 1;
 
-typedef struct SGDEntry{
+typedef struct SGDEntry {
   SGDEntry(size_t k = v_dim) {
     w.resize(k, 0.0);
   }
@@ -32,7 +32,7 @@ struct KVServerSGDHandle {
   void operator() (const ps::KVMeta& req_meta,
                    const ps::KVPairs<float>& req_data,
                    ps::KVServer<float>* server) {
-    auto customer_id = server->get_customer()->id();
+    auto customer_id = server->get_customer()->customer_id();
     LOG(INFO) << "SGDHandler" << std::endl;
     size_t keys_size = req_data.keys.size();
     ps::KVPairs<float> res;
@@ -48,13 +48,13 @@ struct KVServerSGDHandle {
     for (size_t i = 0; i < keys_size; ++i) {
       ps::Key key = req_data.keys[i];
       if (store_.find(key) == store_.end()) {
-        store_[key] = SGDEntry();
+        store_[key] = SGDEntry(v_dim_);
       }
       SGDEntry& val = store_[key];
       if (req_meta.push) {
         for (int j = 0; j < val.w.size(); ++j) {
           float gradient = req_data.vals[i * v_dim_ + j];
-          gradient += regu_lambda * gradient;
+          //gradient += regu_lambda * gradient;
           val.w[j] -= learning_rate * gradient;
         }
       } else {

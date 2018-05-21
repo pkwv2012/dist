@@ -15,8 +15,8 @@ namespace xlearn{
 class XLearnWorker {
  public:
   XLearnWorker() {
-    kv_w_ = new ps::KVWorker<float>(0);
-    kv_v_ = new ps::KVWorker<float>(1);
+    //kv_w_ = new ps::KVWorker<float>(0);
+    //kv_v_ = new ps::KVWorker<float>(1);
   }
   ~XLearnWorker() {}
 

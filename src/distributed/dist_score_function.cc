@@ -30,8 +30,8 @@ namespace xLearn {
 // Class register
 //------------------------------------------------------------------------------
 CLASS_REGISTER_IMPLEMENT_REGISTRY(xLearn_dist_score_registry, DistScore);
-REGISTER_SCORE("dist_linear", DistLinearScore);
-REGISTER_SCORE("dist_fm", DistFMScore);
-REGISTER_SCORE("dist_ffm", DistFFMScore);
+REGISTER_SCORE("linear", DistLinearScore);
+REGISTER_SCORE("fm", DistFMScore);
+REGISTER_SCORE("ffm", DistFFMScore);
 
 }  // namespace xLearn
