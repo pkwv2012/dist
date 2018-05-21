@@ -52,7 +52,14 @@ public:
                real_t pg,
                real_t norm = 1.0);
 
- protected:
+ void CalcGrad(const SparseRow* row,
+               Model& model,
+               real_t pg,
+               std::vector<real_t>& gradient_w,
+               std::vector<real_t>& gradient_v,
+               real_t norm = 1.0);
+
+protected:
   // Calculate gradient and update model using sgd
   void calc_grad_sgd(const SparseRow* row,
                      Model& model,

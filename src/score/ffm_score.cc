@@ -105,6 +105,15 @@ void FFMScore::CalcGrad(const SparseRow* row,
   }
 }
 
+void FFMScore::CalcGrad(const SparseRow* row,
+              Model& model,
+              real_t pg,
+              std::vector<real_t>& gradient_w,
+              std::vector<real_t>& gradient_v,
+              real_t norm) {
+
+}
+
 // Calculate gradient and update current model using sgd
 void FFMScore::calc_grad_sgd(const SparseRow* row,
                              Model& model,

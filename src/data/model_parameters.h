@@ -154,6 +154,8 @@ class Model {
   // Get the number of k.
   inline index_t GetNumK() { return num_K_; }
 
+  inline real_t GetScale() { return scale_; }
+
   // Get the aligned size of K.
   inline index_t get_aligned_k() {
     return (index_t)ceil((real_t)num_K_/kAlign)*kAlign;
@@ -162,6 +164,24 @@ class Model {
   // Get the total size of model parameters.
   inline index_t GetNumParameter() {
     return param_num_w_ + param_num_v_ + 2;
+  }
+
+  void SetParamW(real_t* param, size_t num) {
+    free(param_w_);
+    param_w_ = param;
+    num_feat_ = num;
+  }
+
+  void SetParamV(real_t* param) {
+    if (param_v_) {
+      free(param_v_);
+    }
+    param_v_ = param;
+  }
+
+  void SetParamB(real_t* param) {
+    free(param_b_);
+    param_b_ = param;
   }
 
  protected:

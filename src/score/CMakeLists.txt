@@ -2,13 +2,13 @@
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/test/score)
 
 # Build static library
-set(STA_DEPS data base)
+set(STA_DEPS data base pslite protobuf zmq pthread)
 add_library(score STATIC score_function.cc 
 linear_score.cc fm_score.cc ffm_score.cc)
 target_link_libraries(score ${STA_DEPS})
 
 # Build uinttests
-set(LIBS score data base gtest)
+set(LIBS score data base gtest pslite)
 
 add_executable(score_function_test score_function_test.cc)
 target_link_libraries(score_function_test gtest_main ${LIBS})

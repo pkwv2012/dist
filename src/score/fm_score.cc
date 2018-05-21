@@ -111,27 +111,55 @@ void FMScore::CalcGrad(const SparseRow* row,
   }
 }
 
+void FMScore::CalcGrad(const SparseRow *row, Model &model, real_t pg,
+                       std::vector<real_t> &gradient_w,
+                       std::vector<real_t> &gradient_v,
+                       real_t norm) {
+  DistWeight dist_weight;
+  dist_weight.inplace_update = false;
+  dist_weight.param_w = gradient_w.data();
+  dist_weight.param_b = gradient_w.data() + model.GetNumFeature();
+  dist_weight.param_v = gradient_v.data();
+  if (opt_type_.compare("sgd") == 0) {
+    this->calc_grad_sgd(row, model, pg, norm, &dist_weight);
+  } else if (opt_type_.compare("adagrad") == 0) {
+    this->calc_grad_adagrad(row, model, pg, norm, &dist_weight);
+  } else if (opt_type_.compare("ftrl") == 0) {
+    this->calc_grad_ftrl(row, model, pg, norm, &dist_weight);
+  }
+}
+
 // Calculate gradient and update current model using sgd
 void FMScore::calc_grad_sgd(const SparseRow* row,
                             Model& model,
                             real_t pg,
-                            real_t norm) {
+                            real_t norm,
+                            DistWeight* dist_weight) {
   /*********************************************************
    *  linear term and bias term                            *
    *********************************************************/  
   real_t sqrt_norm = sqrt(norm);
   real_t *w = model.GetParameter_w();
+  real_t *w_out = model.GetParameter_w();
+  real_t learning_rate = learning_rate_;
+  if (dist_weight != nullptr && !dist_weight->inplace_update) {
+    w_out = dist_weight->param_w;
+    learning_rate = 1.0;
+  }
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
     real_t &wl = w[iter->feat_id];
     real_t g = regu_lambda_*wl+pg*iter->feat_val*sqrt_norm;
-    wl -= learning_rate_ * g;
+    w_out[iter->feat_id] -= learning_rate * g;
   }
   // bias
   w = model.GetParameter_b();
+  if (dist_weight != nullptr && !dist_weight->inplace_update) {
+    w_out = dist_weight->param_b;
+  }
   real_t &wb = w[0];
   real_t g = pg;
-  wb -= learning_rate_ * g;
+  w_out[0] -= learning_rate * g;
   /*********************************************************
    *  latent factor                                        *
    *********************************************************/
@@ -139,7 +167,7 @@ void FMScore::calc_grad_sgd(const SparseRow* row,
   index_t align0 = model.get_aligned_k() * 
                    model.GetAuxiliarySize();
   __m128 XMMpg = _mm_set1_ps(pg);
-  __m128 XMMlr = _mm_set1_ps(learning_rate_);
+  __m128 XMMlr = _mm_set1_ps(learning_rate);
   __m128 XMMlamb = _mm_set1_ps(regu_lambda_);
   std::vector<real_t> sv(aligned_k, 0);
   real_t* s = sv.data();
@@ -147,7 +175,9 @@ void FMScore::calc_grad_sgd(const SparseRow* row,
        iter != row->end(); ++iter) {
     index_t j1 = iter->feat_id;
     real_t v1 = iter->feat_val;
-    real_t *w = model.GetParameter_v() + j1 * align0;
+    // middle result, do not need w_out
+    real_t *w = model.GetParameter_v();
+    w += j1 * align0;
     __m128 XMMv = _mm_set1_ps(v1*norm);
     for (index_t d = 0; d < aligned_k; d += kAlign) {
       __m128 XMMs = _mm_load_ps(s+d);
@@ -160,7 +190,13 @@ void FMScore::calc_grad_sgd(const SparseRow* row,
        iter != row->end(); ++iter) {
     index_t j1 = iter->feat_id;
     real_t v1 = iter->feat_val;
-    real_t *w = model.GetParameter_v() + j1 * align0;
+    real_t *w = model.GetParameter_v();
+    real_t *w_out = w;
+    if (dist_weight != nullptr && !dist_weight->inplace_update) {
+      w_out = dist_weight->param_v;
+    }
+    w += j1 * align0;
+    w_out += j1 * align0;
     __m128 XMMv = _mm_set1_ps(v1*norm);
     __m128 XMMpgv = _mm_mul_ps(XMMpg, XMMv);
     for(index_t d = 0; d < aligned_k; d += kAlign) {
@@ -170,7 +206,7 @@ void FMScore::calc_grad_sgd(const SparseRow* row,
         _mm_mul_ps(XMMpgv, _mm_sub_ps(XMMs,
         _mm_mul_ps(XMMw, XMMv))));
       XMMw = _mm_sub_ps(XMMw, _mm_mul_ps(XMMlr, XMMg));
-      _mm_store_ps(w+d, XMMw);
+      _mm_store_ps(w_out+d, XMMw);
     }
   }
 }
@@ -179,27 +215,38 @@ void FMScore::calc_grad_sgd(const SparseRow* row,
 void FMScore::calc_grad_adagrad(const SparseRow* row,
                                 Model& model,
                                 real_t pg,
-                                real_t norm) {
+                                real_t norm,
+                                DistWeight* dist_weight) {
   /*********************************************************
    *  linear term and bias term                            *
    *********************************************************/
+  real_t learning_rate = learning_rate_;
   real_t sqrt_norm = sqrt(norm);
   real_t *w = model.GetParameter_w();
+  real_t *w_out = w;
+  if (dist_weight != nullptr && !dist_weight->inplace_update) {
+    w_out = dist_weight->param_w;
+    learning_rate = 1.0;
+  }
   for (SparseRow::const_iterator iter = row->begin();
       iter != row->end(); ++iter) {
     real_t &wl = w[iter->feat_id*2];
     real_t &wlg = w[iter->feat_id*2+1];
     real_t g = regu_lambda_*wl+pg*iter->feat_val*sqrt_norm;
-    wlg += g*g;
-    wl -= learning_rate_ * g * InvSqrt(wlg);
+    w_out[iter->feat_id*2 + 1] += g*g;
+    w_out[iter->feat_id*2] -= learning_rate * g * InvSqrt(wlg);
   }
   // bias
   w = model.GetParameter_b();
+  w_out = w;
+  if (dist_weight != nullptr && !dist_weight->inplace_update) {
+    w_out = dist_weight->param_b;
+  }
   real_t &wb = w[0];
   real_t &wbg = w[1];
   real_t g = pg;
-  wbg += g*g;
-  wb -= learning_rate_ * g * InvSqrt(wbg);
+  w_out[1] += g*g;
+  w_out[0] -= learning_rate * g * InvSqrt(wbg);
   /*********************************************************
    *  latent factor                                        *
    *********************************************************/
@@ -207,7 +254,7 @@ void FMScore::calc_grad_adagrad(const SparseRow* row,
   index_t align0 = model.get_aligned_k() * 
                    model.GetAuxiliarySize();
   __m128 XMMpg = _mm_set1_ps(pg);
-  __m128 XMMlr = _mm_set1_ps(learning_rate_);
+  __m128 XMMlr = _mm_set1_ps(learning_rate);
   __m128 XMMlamb = _mm_set1_ps(regu_lambda_);
   std::vector<real_t> sv(aligned_k, 0);
   real_t* s = sv.data();
@@ -215,7 +262,11 @@ void FMScore::calc_grad_adagrad(const SparseRow* row,
        iter != row->end(); ++iter) {
     index_t j1 = iter->feat_id;
     real_t v1 = iter->feat_val;
-    real_t *w = model.GetParameter_v() + j1 * align0;
+    real_t *w = model.GetParameter_v();
+    if (dist_weight != nullptr && !dist_weight->inplace_update) {
+      w = dist_weight->param_v;
+    }
+    w += j1 * align0;
     __m128 XMMv = _mm_set1_ps(v1*norm);
     for (index_t d = 0; d < aligned_k; d += kAlign) {
       __m128 XMMs = _mm_load_ps(s+d);
@@ -228,7 +279,11 @@ void FMScore::calc_grad_adagrad(const SparseRow* row,
        iter != row->end(); ++iter) {
     index_t j1 = iter->feat_id;
     real_t v1 = iter->feat_val;
-    real_t *w = model.GetParameter_v() + j1 * align0;
+    real_t *w = model.GetParameter_v();
+    if (dist_weight != nullptr && !dist_weight->inplace_update) {
+      w = dist_weight->param_v;
+    }
+    w += j1 * align0;
     __m128 XMMv = _mm_set1_ps(v1*norm);
     __m128 XMMpgv = _mm_mul_ps(XMMpg, XMMv);
     for(index_t d = 0; d < aligned_k; d += kAlign) {
@@ -252,12 +307,16 @@ void FMScore::calc_grad_adagrad(const SparseRow* row,
 void FMScore::calc_grad_ftrl(const SparseRow* row,
                              Model& model,
                              real_t pg,
-                             real_t norm) {
+                             real_t norm,
+                             DistWeight* dist_weight) {
   /*********************************************************
    *  linear term and bias term                            *
    *********************************************************/
   real_t sqrt_norm = sqrt(norm);
   real_t *w = model.GetParameter_w();
+  if (dist_weight != nullptr && !dist_weight->inplace_update) {
+    w = dist_weight->param_w;
+  }
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
     real_t &wl = w[iter->feat_id*3];
@@ -279,6 +338,9 @@ void FMScore::calc_grad_ftrl(const SparseRow* row,
   }
   // bias
   w = model.GetParameter_b();
+  if (dist_weight != nullptr && !dist_weight->inplace_update) {
+    w = dist_weight->param_b;
+  }
   real_t &wb = w[0];
   real_t &wbg = w[1];
   real_t &wbz = w[2];
@@ -310,7 +372,11 @@ void FMScore::calc_grad_ftrl(const SparseRow* row,
        iter != row->end(); ++iter) {
     index_t j1 = iter->feat_id;
     real_t v1 = iter->feat_val;
-    real_t *w = model.GetParameter_v() + j1 * align0;
+    real_t *w = model.GetParameter_v();
+    if (dist_weight != nullptr && !dist_weight->inplace_update) {
+      w = dist_weight->param_v;
+    }
+    w += j1 * align0;
     __m128 XMMv = _mm_set1_ps(v1*norm);
     for (index_t d = 0; d < aligned_k; d += kAlign) {
       __m128 XMMs = _mm_load_ps(s+d);
@@ -323,7 +389,11 @@ void FMScore::calc_grad_ftrl(const SparseRow* row,
        iter != row->end(); ++iter) {
     index_t j1 = iter->feat_id;
     real_t v1 = iter->feat_val;
-    real_t *w_base = model.GetParameter_v() + j1 * align0;
+    real_t *w_base = model.GetParameter_v();
+    if (dist_weight != nullptr && !dist_weight->inplace_update) {
+      w_base = dist_weight->param_v;
+    }
+    w_base += j1 * align0;
     __m128 XMMv = _mm_set1_ps(v1*norm);
     __m128 XMMpgv = _mm_mul_ps(XMMpg, XMMv);
     for (index_t d = 0; d < aligned_k; d += kAlign) {

@@ -274,6 +274,7 @@ struct DMatrix {
   //  -------------------------------------------------
   void Compress(std::vector<index_t>& feature_list) {
     // Using a map to store the mapping relations
+    // the feature_list must be sorted, cause the ps-lite using the sorted Key.
     feature_map mp; 
     index_t idx = 1;
     for (index_t i = 0; i < this->row_length; ++i) {
@@ -292,6 +293,60 @@ struct DMatrix {
         }
       }
     } 
+  }
+
+  void Compress(const std::unordered_map<index_t, index_t>& id) {
+    for (index_t i = 0; i < this->row_length; ++ i) {
+      SparseRow* row = this->row[i];
+      for (SparseRow::iterator iter = row->begin();
+           iter != row->end(); ++ iter) {
+        const auto& pr = id.find(iter->feat_id);
+        CHECK(pr != id.end());
+        iter->feat_id = pr->second;
+      }
+    }
+  }
+
+  template <class Key>
+  void ToDenseMatrix(index_t start_index, index_t end_index,
+                     std::vector<Key>& dense_to_sparse) {
+    // get feature set
+    std::unordered_set<index_t> feat_set;
+    for (index_t i = start_index; i < end_index; ++ i) {
+      SparseRow* row = this->row[i];
+      for (SparseRow::iterator iter = row->begin();
+           iter != row->end(); ++ iter) {
+        feat_set.insert(iter->feat_id);
+      }
+    }
+    // get sorted feature set and map
+    dense_to_sparse.resize(feat_set.size());
+    std::copy(feat_set.begin(), feat_set.end(), dense_to_sparse.begin());
+    std::sort(dense_to_sparse.begin(), dense_to_sparse.end());
+    std::unordered_map<index_t, index_t> feat_map;
+    for (size_t i = 0; i < dense_to_sparse.size(); ++ i) {
+      feat_map[dense_to_sparse[i]] = i;
+    }
+    // map sparse index to dense index
+    for (index_t i = start_index; i < end_index; ++ i) {
+      SparseRow* row = this->row[i];
+      for (SparseRow::iterator iter = row->begin();
+           iter != row->end(); ++ iter) {
+        iter->feat_id = feat_map[iter->feat_id];
+      }
+    }
+  }
+
+  template <class Key>
+  void ToSparseMatrix(index_t start_index, index_t end_index,
+                      const std::vector<Key>& dense_to_sparse) {
+    for (index_t i = start_index; i < end_index; ++ i) {
+      SparseRow* row = this->row[i];
+      for (SparseRow::iterator iter = row->begin();
+           iter != row->end(); ++ iter) {
+        iter->feat_id = dense_to_sparse[iter->feat_id];
+      }
+    }
   }
 
   // Get a mini-batch of data from curremt data matrix. 

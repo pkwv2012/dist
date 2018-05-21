@@ -49,7 +49,7 @@ namespace xLearn {
 //
 //   // Then, we can perform gradient descent like this:
 //   DMatrix* matrix = NULL;
-//   for (int n = 0: n < epoch; ++n) {
+//   for (int n = 0; n < epoch; ++n) {
 //     reader->Reset();
 //     while (reader->Samples(matrix)) {
 //       // Assume that the model and updater have been initialized
@@ -100,6 +100,10 @@ class Loss {
   virtual void Predict(const DMatrix* data_matrix,
                        Model& model,
                        std::vector<real_t>& pred);
+
+  virtual void PredictDist(DMatrix* matrix,
+                           Model& model,
+                           std::vector<real_t>& pred);
 
   // Given data sample and current model, calculate gradient
   // and update current model parameters.

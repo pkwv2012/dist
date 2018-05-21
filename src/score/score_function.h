@@ -81,6 +81,13 @@ class Score {
                         real_t pg,
                         real_t norm = 1.0) = 0;
 
+  virtual void CalcGrad(const SparseRow* row,
+                        Model& model,
+                        real_t pg,
+                        std::vector<real_t>& gradient_w,
+                        std::vector<real_t>& gradient_v,
+                        real_t norm = 1.0) = 0;
+
  protected:
   real_t learning_rate_;
   real_t regu_lambda_;
@@ -92,6 +99,13 @@ class Score {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Score);
+};
+
+struct DistWeight {
+  bool inplace_update = true;
+  real_t* param_w = nullptr;
+  real_t* param_v = nullptr;
+  real_t* param_b = nullptr;
 };
 
 //------------------------------------------------------------------------------

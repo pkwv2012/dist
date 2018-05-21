@@ -69,7 +69,7 @@ enum Code {
 
 //------------------------------------------------------------------------------
 // The Modifier class can be used to set the foreground and background
-// color of output. We can this class like this:
+// color of output. We can use this class like this:
 // 
 //   Modifier red(Color::FG_RED);
 //   Modifier def(Color::FG_DEFAULT);
