@@ -323,6 +323,9 @@ struct DMatrix {
     dense_to_sparse.resize(feat_set.size());
     std::copy(feat_set.begin(), feat_set.end(), dense_to_sparse.begin());
     std::sort(dense_to_sparse.begin(), dense_to_sparse.end());
+    for (int i = 1; i < dense_to_sparse.size(); ++ i) {
+      CHECK_GT(dense_to_sparse[i], dense_to_sparse[i - 1]);
+    }
     std::unordered_map<index_t, index_t> feat_map;
     for (size_t i = 0; i < dense_to_sparse.size(); ++ i) {
       feat_map[dense_to_sparse[i]] = i;
@@ -347,6 +350,18 @@ struct DMatrix {
         iter->feat_id = dense_to_sparse[iter->feat_id];
       }
     }
+  }
+
+  size_t UniqueFeatureNum(index_t start_index, index_t end_index) const {
+    std::unordered_set<index_t> feat_set;
+    for (index_t i = start_index; i < end_index; ++ i) {
+      SparseRow* row = this->row[i];
+      for (SparseRow::iterator iter = row->begin();
+           iter != row->end(); ++ iter) {
+        feat_set.insert(iter->feat_id);
+      }
+    }
+    return feat_set.size();
   }
 
   // Get a mini-batch of data from curremt data matrix. 

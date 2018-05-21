@@ -180,6 +180,7 @@ void Checker::Initialize(bool is_train, int argc, char* argv[]) {
     menu_.push_back(std::string("--batch-size"));
     menu_.push_back(std::string("--num-features"));
     menu_.push_back(std::string("--num-field"));
+    menu_.push_back(std::string("--is-distributed"));
   } else {  // for Prediction
     menu_.push_back(std::string("-o"));
     menu_.push_back(std::string("-l"));
@@ -533,6 +534,16 @@ bool Checker::check_train_options(HyperParam& hyper_param) {
         bo = false;
       } else {
         hyper_param.num_field = value;
+      }
+      i += 2;
+    } else if (list[i].compare("--is-distributed") == 0) {
+      int value = atoi(list[i + 1].c_str());
+      if (value != 0 && value != 1) {
+        StringPrintf("Illegal --is-distributed: '%d'."
+                       "--is-distributed should be 0/1", value);
+        bo = false;
+      } else {
+        hyper_param.is_distributed = value;
       }
       i += 2;
     } else {  // no match

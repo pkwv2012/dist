@@ -140,7 +140,7 @@ struct HyperParam {
   /* Is distributed learning*/
   bool is_distributed = false;
   /* Batch size for gradient descent */
-  int batch_size = 10000;
+  index_t batch_size = 10000;
   /* Number of worker for compute gradient */
   int num_worker = 0;
   /* Number of parameter server for store model parameters */

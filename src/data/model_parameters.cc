@@ -174,8 +174,11 @@ void Model::set_value() {
 // Free the allocated memory
 void Model::free_model() {
   free(param_w_);
+  param_w_ = nullptr;
   free(param_v_);
+  param_v_ = nullptr;
   free(param_b_);
+  param_b_ = nullptr;
   if (param_best_w_ != nullptr) {
     free(param_best_w_);
   }

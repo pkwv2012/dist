@@ -333,9 +333,11 @@ void Solver::init_train() {
    *  Initialize loss function                             *
    *********************************************************/
   loss_ = create_loss();
-  loss_->Initialize(score_, pool_,
-         hyper_param_.norm, 
-         hyper_param_.lock_free);
+  loss_->Initialize(score_,
+                    pool_,
+                    hyper_param_.norm,
+                    hyper_param_.lock_free,
+                    hyper_param_.batch_size);
   LOG(INFO) << "Initialize loss function.";
   /*********************************************************
    *  Init metric                                          *

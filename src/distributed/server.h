@@ -1,7 +1,6 @@
 #include "iostream"
 #include "src/base/math.h"
 #include "src/data/hyper_parameters.h"
-#include "src/distributed/dist_checker.h"
 #include "src/distributed/dist_score_function.h"
 #include "ps/ps.h"
 
@@ -198,7 +197,7 @@ class XLearnServer{
   XLearnServer(int argc, char* argv[]){
     kv_w_ = new ps::KVServer<V>(0);
     kv_v_ = new ps::KVServer<V>(1);
-    checker_ = new xLearn::DistChecker;
+    checker_ = new xLearn::Checker;
     checker_->Initialize(hyper_param_.is_train, argc, argv);
     checker_->check_cmd(hyper_param_);
 
@@ -239,7 +238,7 @@ class XLearnServer{
   }
   ps::KVServer<V>* kv_w_;
   ps::KVServer<V>* kv_v_;
-  xLearn::DistChecker* checker_;
+  xLearn::Checker* checker_;
   xLearn::HyperParam hyper_param_;
 };//end class Server
 }

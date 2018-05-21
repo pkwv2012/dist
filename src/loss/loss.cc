@@ -72,9 +72,11 @@ void pred_thread_mini_batch(DMatrix* matrix,
     std::vector<ps::Key> feat_idx = dense_to_sparse;
     // add bias
     feat_idx.push_back(model->GetNumFeature() - 1);
-    std::vector<real_t> param_w(feat_idx.size());
+    //std::vector<real_t> param_w(feat_idx.size());
+    Vector<real_t> param_w(feat_idx.size(), model->GetNumParameter_w(), model->GetParameter_w());
     auto kv_w_ts = kv_w.Pull(feat_idx, &param_w);
-    std::vector<real_t> param_v;
+    //std::vector<real_t> param_v;
+    Vector<real_t> param_v(dense_to_sparse.size(), model->GetNumParameter_v(), model->GetParameter_v());
     if (model->GetScoreFunction().compare("fm") == 0
         || model->GetScoreFunction().compare("ffm") == 0) {
       param_v.resize(dense_to_sparse.size()
@@ -84,9 +86,10 @@ void pred_thread_mini_batch(DMatrix* matrix,
       kv_v.Wait(kv_v_ts);
     }
     kv_w.Wait(kv_w_ts);
-    model->SetParamW(param_w.data(), param_w.size() - 1);
+    //model->SetParamW(param_w.data(), param_w.size() - 1);
+    //model->SetParamB(param_w.data() + feat_num);
+    //model->SetParamV(param_v.data());
     model->SetParamB(param_w.data() + feat_num);
-    model->SetParamV(param_v.data());
 
     for (int j = i; j < i_end_idx; ++ j) {
       SparseRow* row = matrix->row[j];

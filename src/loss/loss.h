@@ -80,10 +80,10 @@ class Loss {
                   ThreadPool* pool, 
                   bool norm = true,
                   bool lock_free = false,
-                  index_t batch_size = 0) {
+                  index_t batch_size = 10000) {
     CHECK_NOTNULL(score);
     CHECK_NOTNULL(pool);
-    CHECK_GE(batch_size, 0);
+    CHECK_GT(batch_size, 0);
     score_func_ = score;
     pool_ = pool;
     norm_ = norm;

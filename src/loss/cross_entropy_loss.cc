@@ -117,6 +117,7 @@ static void ce_gradient_thread_mini_batch(DMatrix* matrix,
   *sum = 0;
   ps::KVWorker<real_t> kv_w(0, thread_id);
   ps::KVWorker<real_t> kv_v(1, thread_id);
+  index_t bias_idx = model->GetNumFeature() - 1;
   for (size_t i = start_idx; i < end_idx; i += batch_size) {
     size_t i_end_idx = std::min(end_idx, i + batch_size);
     index_t sample_num = i_end_idx - i;
@@ -126,10 +127,13 @@ static void ce_gradient_thread_mini_batch(DMatrix* matrix,
     index_t feat_num = dense_to_sparse.size();
     std::vector<ps::Key> feat_idx = dense_to_sparse;
     // add bias
-    feat_idx.push_back(model->GetNumFeature() - 1);
-    std::vector<real_t> param_w(feat_idx.size());
+    feat_idx.push_back(bias_idx);
+    //std::vector<real_t> param_w(feat_idx.size());
+    Vector<real_t> param_w(feat_idx.size(), model->GetNumParameter_w(), model->GetParameter_w());
     auto kv_w_ts = kv_w.Pull(feat_idx, &param_w);
-    std::vector<real_t> param_v;
+    kv_w.Wait(kv_w_ts);
+    //std::vector<real_t> param_v;
+    Vector<real_t> param_v(dense_to_sparse.size(), model->GetNumParameter_v(), model->GetParameter_v());
     if (model->GetScoreFunction().compare("fm") == 0
         || model->GetScoreFunction().compare("ffm") == 0) {
       param_v.resize(dense_to_sparse.size()
@@ -138,10 +142,11 @@ static void ce_gradient_thread_mini_batch(DMatrix* matrix,
       auto kv_v_ts = kv_v.Pull(dense_to_sparse, &param_v);
       kv_v.Wait(kv_v_ts);
     }
-    kv_w.Wait(kv_w_ts);
-    model->SetParamW(param_w.data(), param_w.size() - 1);
+    //kv_w.Wait(kv_w_ts);
+    //model->SetParamW(param_w.data(), param_w.size() - 1);
+    //model->SetParamB(param_w.data() + feat_num);
+    //model->SetParamV(param_v.data());
     model->SetParamB(param_w.data() + feat_num);
-    model->SetParamV(param_v.data());
 
     real_t pg_sum = 0.0;
     for (int j = i; j < i_end_idx; ++ j) {
@@ -228,12 +233,14 @@ void CrossEntropyLoss::CalcGradDist(DMatrix* matrix,
   // multi-thread training
   int count = lock_free_ ? threadNumber_ : 1;
   std::vector<real_t> sum(count, 0);
+  std::vector<Model> model_arr(count);
+  index_t batch_feat_num = matrix->UniqueFeatureNum(0, batch_size_);
   for (int i = 0; i < count; ++i) {
     index_t start_idx = getStart(row_len, count, i);
     index_t end_idx = getEnd(row_len, count, i);
-    Model model_i;
+    Model& model_i = model_arr[i];
     model_i.Initialize(model.GetScoreFunction(), model.GetLossFunction(),
-                       model.GetNumFeature(), model.GetNumField(),
+                       batch_feat_num * 1.2, model.GetNumField(),
                        model.GetNumK(), model.GetAuxiliarySize(),
                        model.GetScale());
     pool_->enqueue(std::bind(ce_gradient_thread_mini_batch,
