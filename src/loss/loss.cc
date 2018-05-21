@@ -58,7 +58,8 @@ void pred_thread_mini_batch(DMatrix* matrix,
                             size_t start_idx,
                             size_t end_idx,
                             size_t batch_size,
-                            int thread_id) {
+                            int thread_id,
+                            index_t bias_idx) {
   CHECK_GE(end_idx, start_idx);
   ps::KVWorker<real_t> kv_w(0, thread_id);
   ps::KVWorker<real_t> kv_v(1, thread_id);
@@ -71,10 +72,11 @@ void pred_thread_mini_batch(DMatrix* matrix,
     index_t feat_num = dense_to_sparse.size();
     std::vector<ps::Key> feat_idx = dense_to_sparse;
     // add bias
-    feat_idx.push_back(model->GetNumFeature() - 1);
+    feat_idx.push_back(bias_idx);
     //std::vector<real_t> param_w(feat_idx.size());
     Vector<real_t> param_w(feat_idx.size(), model->GetNumParameter_w(), model->GetParameter_w());
     auto kv_w_ts = kv_w.Pull(feat_idx, &param_w);
+    kv_w.Wait(kv_w_ts);
     //std::vector<real_t> param_v;
     Vector<real_t> param_v(dense_to_sparse.size(), model->GetNumParameter_v(), model->GetParameter_v());
     if (model->GetScoreFunction().compare("fm") == 0
@@ -85,7 +87,6 @@ void pred_thread_mini_batch(DMatrix* matrix,
       auto kv_v_ts = kv_v.Pull(dense_to_sparse, &param_v);
       kv_v.Wait(kv_v_ts);
     }
-    kv_w.Wait(kv_w_ts);
     //model->SetParamW(param_w.data(), param_w.size() - 1);
     //model->SetParamB(param_w.data() + feat_num);
     //model->SetParamV(param_v.data());
@@ -133,13 +134,15 @@ void Loss::PredictDist(DMatrix* matrix,
   CHECK_NE(pred.empty(), true);
   CHECK_EQ(pred.size(), matrix->row_length);
   index_t row_len = matrix->row_length;
+  index_t batch_feature_num = matrix->UniqueFeatureNum(0, batch_size_);
+  std::vector<Model> model_arr(threadNumber_);
   // Predict in multi-thread
   for (int i = 0; i < threadNumber_; ++i) {
     size_t start_idx = getStart(row_len, threadNumber_, i);
     size_t end_idx = getEnd(row_len, threadNumber_, i);
-    Model model_i;
+    Model& model_i = model_arr[i];
     model_i.Initialize(model.GetScoreFunction(), model.GetLossFunction(),
-                       model.GetNumFeature(), model.GetNumField(),
+                       batch_feature_num * 1.2, model.GetNumField(),
                        model.GetNumK(), model.GetAuxiliarySize(),
                        model.GetScale());
     pool_->enqueue(std::bind(pred_thread_mini_batch,
@@ -151,7 +154,8 @@ void Loss::PredictDist(DMatrix* matrix,
                              start_idx,
                              end_idx,
                              batch_size_,
-                             i));
+                             i,
+                             model.GetNumFeature() - 1));
   }
   // Wait all of the threads finish their job
   pool_->Sync(threadNumber_);

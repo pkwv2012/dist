@@ -154,6 +154,7 @@ void FMScore::calc_grad_sgd(const SparseRow* row,
   }
   // bias
   w = model.GetParameter_b();
+  w_out = w;
   if (dist_weight != nullptr && !dist_weight->inplace_update) {
     w_out = dist_weight->param_b;
   }

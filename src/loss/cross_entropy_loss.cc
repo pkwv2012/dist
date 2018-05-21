@@ -112,12 +112,13 @@ static void ce_gradient_thread_mini_batch(DMatrix* matrix,
                                size_t start_idx,
                                size_t end_idx,
                                index_t batch_size,
-                               int thread_id) {
+                               int thread_id,
+                               index_t bias_idx) {
   CHECK_GE(end_idx, start_idx);
   *sum = 0;
   ps::KVWorker<real_t> kv_w(0, thread_id);
   ps::KVWorker<real_t> kv_v(1, thread_id);
-  index_t bias_idx = model->GetNumFeature() - 1;
+  //index_t bias_idx = model->GetNumFeature() - 1;
   for (size_t i = start_idx; i < end_idx; i += batch_size) {
     size_t i_end_idx = std::min(end_idx, i + batch_size);
     index_t sample_num = i_end_idx - i;
@@ -156,11 +157,11 @@ static void ce_gradient_thread_mini_batch(DMatrix* matrix,
       // partial gradient
       real_t y = matrix->Y[i] > 0 ? 1.0 : -1.0;
       *sum += log1p(exp(-y*pred));
-      pg_sum = -y/(1.0+(1.0/exp(-y*pred)));
+      pg_sum += -y/(1.0+(1.0/exp(-y*pred)));
     }
     real_t pg = pg_sum / sample_num;
-    std::vector<real_t> gradient_w(param_w.size());
-    std::vector<real_t> gradient_v(param_v.size());
+    std::vector<real_t> gradient_w(param_w.size(), 0.0);
+    std::vector<real_t> gradient_v(param_v.size(), 0.0);
     for (int j = i; j < i_end_idx; ++ j) {
       SparseRow* row = matrix->row[j];
       real_t norm = is_norm ? matrix->norm[i] : 1.0;
@@ -168,7 +169,7 @@ static void ce_gradient_thread_mini_batch(DMatrix* matrix,
     }
     // to sparse
     matrix->ToSparseMatrix(i, i_end_idx, dense_to_sparse);
-    kv_w_ts = kv_w.Pull(feat_idx, &gradient_w);
+    kv_w_ts = kv_w.Push(feat_idx, gradient_w);
     if (model->GetScoreFunction().compare("fm") == 0
         || model->GetScoreFunction().compare("ffm") == 0) {
       kv_v.Wait(kv_v.Push(dense_to_sparse, gradient_v));
@@ -252,7 +253,8 @@ void CrossEntropyLoss::CalcGradDist(DMatrix* matrix,
                              start_idx,
                              end_idx,
                              batch_size_,
-                             i));
+                             i,
+                             model.GetNumParameter_w() - 1));
   }
   // Wait all of the threads finish their job
   pool_->Sync(count);

@@ -259,7 +259,11 @@ MetricInfo Trainer::calc_metric(std::vector<Reader*>& reader_list) {
       index_t tmp = reader_list[i]->Samples(matrix);
       if (tmp == 0) { break; }
       if (tmp != pred.size()) { pred.resize(tmp); }
-      loss_->Predict(matrix, *model_, pred);
+      if (is_distributed_) {
+        loss_->PredictDist(matrix, *model_, pred);
+      } else {
+        loss_->Predict(matrix, *model_, pred);
+      }
       loss_->Evalute(pred, matrix->Y);
       if (metric_ != nullptr) {
         metric_->Accumulate(matrix->Y, pred);
