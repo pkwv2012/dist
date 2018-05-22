@@ -203,11 +203,12 @@ void FMScore::calc_grad_sgd(const SparseRow* row,
     for(index_t d = 0; d < aligned_k; d += kAlign) {
       __m128 XMMs = _mm_load_ps(s+d);
       __m128 XMMw = _mm_load_ps(w+d);
+      __m128 XMMout = _mm_loadu_ps(w_out+d);
       __m128 XMMg = _mm_add_ps(_mm_mul_ps(XMMlamb, XMMw),
         _mm_mul_ps(XMMpgv, _mm_sub_ps(XMMs,
         _mm_mul_ps(XMMw, XMMv))));
-      XMMw = _mm_sub_ps(XMMw, _mm_mul_ps(XMMlr, XMMg));
-      _mm_store_ps(w_out+d, XMMw);
+      XMMout = _mm_sub_ps(XMMout, _mm_mul_ps(XMMlr, XMMg));
+      _mm_storeu_ps(w_out+d, XMMout);
     }
   }
 }

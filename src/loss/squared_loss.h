@@ -50,6 +50,14 @@ class SquaredLoss : public Loss {
   // Return current loss type
   std::string loss_type() { return "mse_loss"; }
 
+  real_t CalcLoss(const real_t& y, const real_t& pred) {
+    return (y - pred) * (y - pred) * 0.5;
+  }
+
+  real_t CalcPartialGradient(const real_t& y, const real_t& pred) {
+    return pred - y;
+  }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(SquaredLoss);
 };

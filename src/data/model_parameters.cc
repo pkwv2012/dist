@@ -24,6 +24,7 @@ This file is the implementation of the Model class.
 
 #include <string.h>
 #include <pmmintrin.h>  // for SSE
+#include <src/base/timer.h>
 
 #include "src/base/file_util.h"
 #include "src/base/format_print.h"
@@ -74,7 +75,10 @@ void Model::Initialize(const std::string& score_func,
   } else {
     LOG(FATAL) << "Unknow score function: " << score_func;
   }
+  Timer timer;
+  timer.tic();
   this->initial(true);
+  LOG(INFO) << "InitializeTime=" << timer.toc() << std::endl;
 }
 
 // To get the best performance for SSE, we need to

@@ -133,6 +133,10 @@ class Loss {
   // Return a current loss type
   virtual std::string loss_type() = 0;
 
+  virtual real_t CalcLoss(const real_t& y, const real_t& pred) = 0;
+
+  virtual real_t CalcPartialGradient(const real_t& y, const real_t& pred) = 0;
+
  protected:
   /* The score function, including LinearScore,
   FMScore, FFMScore, etc */

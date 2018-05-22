@@ -29,6 +29,15 @@ int v_dim = 1;
  *  ...:
  * */
 
+static void InitializeFMLatent(real_t* param, int num_K, real_t scale) {
+  std::default_random_engine generator;
+  std::uniform_real_distribution<real_t> dis(0.0, 1.0);
+  real_t coef = 1.0f / sqrt(num_K) * scale;
+  for (index_t d = 0; d < num_K; ++ d, ++ param) {
+    *param = coef * dis(generator);
+  }
+}
+
 template <class V>
 class KVServerSGDHandle {
 public:
@@ -66,6 +75,10 @@ public:
       ps::Key key = req_data.keys[i];
       if (store_.find(key) == store_.end()) {
         store_[key] = std::vector<V>(len, 0.0);
+        if (!is_weight_ && hyper_param_->score_func.compare("fm") == 0) {
+          LOG(INFO) << "num_K=" << hyper_param_->num_K << "||scale=" << hyper_param_->model_scale << std::endl;
+          InitializeFMLatent(store_[key].data(), hyper_param_->num_K, hyper_param_->model_scale);
+        }
       }
       std::vector<V>& val = store_[key];
       if (req_meta.push) {

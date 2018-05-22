@@ -47,12 +47,24 @@ class CrossEntropyLoss : public Loss {
   // This function will also accumulate the loss value.
   void CalcGrad(const DMatrix* data_matrix, Model& model);
 
+  /*
   void CalcGradDist(DMatrix* data_matrix,
                    Model& model,
                    std::vector<real_t>& grad);
+                   */
 
   // Return current loss type.
   std::string loss_type() { return "log_loss"; }
+
+  real_t CalcLoss(const real_t& y, const real_t& pred) {
+    real_t ny = y > 0 ? 1.0 : -1.0;
+    return log1p(exp(-ny*pred));
+  }
+
+  real_t CalcPartialGradient(const real_t& y, const real_t& pred) {
+    real_t ny = y > 0 ? 1.0 : -1.0;
+    return -ny/(1.0+(1.0/exp(-ny*pred)));
+  }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(CrossEntropyLoss);

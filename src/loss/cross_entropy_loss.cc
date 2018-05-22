@@ -224,6 +224,8 @@ void CrossEntropyLoss::CalcGrad(const DMatrix* matrix,
 // Note that this method doesn't update local model, and the
 // gradient will be pushed to the parameter server, which is 
 // used for distributed computation.
+// this function should be implemented in `Loss.cc`
+/*
 void CrossEntropyLoss::CalcGradDist(DMatrix* matrix,
                                     Model& model,
                                     std::vector<real_t>& grad) {
@@ -263,5 +265,6 @@ void CrossEntropyLoss::CalcGradDist(DMatrix* matrix,
     loss_sum_ += sum[i];
   }
 }
+ */
 
 } // namespace xLearn
