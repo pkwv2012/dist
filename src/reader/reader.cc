@@ -37,6 +37,7 @@ namespace xLearn {
 CLASS_REGISTER_IMPLEMENT_REGISTRY(xLearn_reader_registry, Reader);
 REGISTER_READER("memory", InmemReader);
 REGISTER_READER("disk", OndiskReader);
+REGISTER_READER("copy", CopyReader);
 
 // Check current file format and
 // return 'libsvm', 'libffm', or 'csv'.
@@ -267,5 +268,57 @@ index_t OndiskReader::Samples(DMatrix* &matrix) {
   matrix = &data_samples_;
   return data_samples_.row_length;
 }
+
+//------------------------------------------------------------------------------
+// Implementation of CopyReader
+//------------------------------------------------------------------------------
+
+// Copy DMatrix from some other data source
+void CopyReader::Initialize(const std::string& filename) {
+  // We do nothing in this function
+  return;
+}
+
+// Copy DMatrix from the other data source
+void CopyReader::CopyDMatrix(DMatrix* matrix) {
+  CHECK_NOTNULL(matrix);
+  // Copy matrix to data_buf_
+  this->data_buf_.CopyFrom(matrix);
+  // Init data_samples_ 
+  num_samples_ = data_buf_.row_length;
+  data_samples_.ResetMatrix(num_samples_, has_label_);
+  // for shuffle
+  order_.resize(num_samples_);
+  for (int i = 0; i < order_.size(); ++i) {
+    order_[i] = i;
+  }
+}
+
+// Smaple data from memory buffer.
+index_t CopyReader::Samples(DMatrix* &matrix) {
+  for (int i = 0; i < num_samples_; ++i) {
+    if (pos_ >= data_buf_.row_length) {
+      // End of the data buffer
+      if (i == 0) {
+        if (shuffle_) {
+          random_shuffle(order_.begin(), order_.end());
+        }
+        matrix = nullptr;
+        return 0;
+      }
+      break;
+    }
+    // Copy data between different DMatrix.
+    data_samples_.row[i] = data_buf_.row[order_[pos_]];
+    data_samples_.Y[i] = data_buf_.Y[order_[pos_]];
+    data_samples_.norm[i] = data_buf_.norm[order_[pos_]];
+    pos_++;
+  }
+  matrix = &data_samples_;
+  return num_samples_;
+}
+
+// Return to the begining of the data buffer.
+void CopyReader::Reset() { pos_ = 0; }
 
 }  // namespace xLearn

@@ -43,7 +43,7 @@ namespace xLearn {
 //    >  <| |___|  __/ (_| | |  | | | |
 //   /_/\_\______\___|\__,_|_|  |_| |_|
 //
-//      xLearn   -- 0.10 Version --
+//      xLearn   -- 0.30 Version --
 //------------------------------------------------------------------------------
 void Solver::print_logo() const {
   std::string logo = 
@@ -54,7 +54,7 @@ void Solver::print_logo() const {
                     "     \\ \\/ / |    / _ \\/ _` | '__| '_ \\ \n"
                     "      >  <| |___|  __/ (_| | |  | | | |\n"
                     "     /_/\\_\\_____/\\___|\\__,_|_|  |_| |_|\n\n"
-                    "        xLearn   -- 0.20 Version --\n"
+                    "        xLearn   -- 0.31 Version --\n"
 "----------------------------------------------------------------------------------------------\n"
 "\n";
   Color::Modifier green(Color::FG_GREEN);
@@ -247,6 +247,9 @@ void Solver::init_train() {
       );
       exit(0);
     }
+    if (reader_[i]->Type().compare("on-disk") == 0) {
+      reader_[i]->SetBlockSize(hyper_param_.block_size);
+    }
     LOG(INFO) << "Init Reader: " << file_list[i];
   }
   /*********************************************************
@@ -267,6 +270,12 @@ void Solver::init_train() {
     reader_[i]->Reset();
   }
   hyper_param_.num_feature = max_feat + 1;
+  // Check overflow:
+  // INT_MAX +  = 0
+  if (hyper_param_.num_feature == 0) {
+    print_error("Feature index is too large (overflow).");
+    LOG(FATAL) << "Feature index is too large (overflow).";
+  }
   LOG(INFO) << "Number of feature: " << hyper_param_.num_feature;
   print_info(
     StringPrintf("Number of Feature: %d", 
@@ -464,6 +473,7 @@ void Solver::start_train_work() {
   int epoch = hyper_param_.num_epoch;
   bool early_stop = hyper_param_.early_stop &&
                    !hyper_param_.cross_validation;
+  int stop_window = hyper_param_.stop_window;
   bool quiet = hyper_param_.quiet &&
               !hyper_param_.cross_validation;
   bool save_model = true;
@@ -483,6 +493,7 @@ void Solver::start_train_work() {
                      loss_,
                      metric_,
                      early_stop,
+                     stop_window,
                      quiet,
                      hyper_param_.is_distributed);
   print_action("Start to train ...");
@@ -498,6 +509,7 @@ void Solver::start_train_work() {
  ******************************************************************************/
   else {
     trainer.Train();
+    // Save binary model
     if (save_model) {
       Timer timer;
       timer.tic();
@@ -511,7 +523,8 @@ void Solver::start_train_work() {
         StringPrintf("Time cost for saving model: %.2f (sec)",
              timer.toc())
       );
-    } 
+    }
+    // Save TXT model 
     if (save_txt_model) {
       Timer timer;
       timer.tic();

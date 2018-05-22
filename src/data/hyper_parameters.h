@@ -57,9 +57,6 @@ struct HyperParam {
   For now, it can be 'acc', 'prec', 'recall', 
   'f1', 'mae', 'rmsd', 'mape', or 'none' */
   std::string metric = "none";
-  /* Block size for on-disk training.
-  On default this value will be set to 500 MB */
-  uint64 block_size = 500;
   /* Number of thread existing in the thread pool */
   int thread_number = 0;
 //------------------------------------------------------------------------------
@@ -111,6 +108,8 @@ struct HyperParam {
   /* Filename of model checkpoint
   On default, model_file = train_set_file + ".model" */
   std::string model_file;
+  /* Pre-trained model for online learning */
+  std::string pre_model_file;
   /* Filename of the txt model checkpoint 
   On default, txt_model_file = none */
   std::string txt_model_file = "none";
@@ -119,6 +118,8 @@ struct HyperParam {
   std::string output_file;
   /* Filename of log file */
   std::string log_file = "/tmp/xlearn_log";
+  /* Block size for on-disk training */
+  int block_size = 500;  // 500 MB
 //------------------------------------------------------------------------------
 // Parameters for validation
 //------------------------------------------------------------------------------
@@ -130,6 +131,8 @@ struct HyperParam {
   /* True for using early-stop and
   False for not */
   bool early_stop = true;
+  /* Early stop window size */
+  int stop_window = 2;
   /* Convert predition output to 0 and 1 */
   bool sign = false;
   /* Convert predition output using sigmoid */

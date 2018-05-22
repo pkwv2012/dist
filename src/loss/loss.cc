@@ -140,7 +140,7 @@ void Loss::PredictDist(DMatrix* matrix,
   for (int i = 0; i < threadNumber_; ++i) {
     size_t start_idx = getStart(row_len, threadNumber_, i);
     size_t end_idx = getEnd(row_len, threadNumber_, i);
-    Model& model_i = model_arr[i];
+    Model &model_i = model_arr[i];
     model_i.Initialize(model.GetScoreFunction(), model.GetLossFunction(),
                        batch_feature_num * 1.2, model.GetNumField(),
                        model.GetNumK(), model.GetAuxiliarySize(),
@@ -159,6 +159,39 @@ void Loss::PredictDist(DMatrix* matrix,
   }
   // Wait all of the threads finish their job
   pool_->Sync(threadNumber_);
+}
+
+// Given data sample and current model, calculate gradient.
+// Note that this method doesn't update local model, and the
+// gradient will be pushed to the parameter server, which is 
+// used for distributed computation.
+void Loss::CalcGradDist(DMatrix* matrix,
+                        Model& model,
+                        std::vector<real_t>& grad) {
+  for(;;) {
+    // Get a mini-batch from current data matrix
+    DMatrix mini_batch;
+    mini_batch.ResetMatrix(batch_size_);
+    index_t len = matrix->GetMiniBatch(batch_size_, mini_batch);
+    if (len == 0) {
+      break;
+    }
+    mini_batch.row_length = len;
+    // Compress the sparse data matrix and sparse model
+    // parameter to dense format
+    std::vector<index_t> feature_list;
+    mini_batch.Compress(feature_list);
+    /*
+    // Pull the model parameter from parameter server
+    store->pull(feature_list, model);
+
+    // Calculate gradient
+    this->CalcGrad(matrix, model, grad);
+
+    // Push gradient to the parameter server
+    ps->push(grad, feature_list);
+    */
+  }
 }
 
 }  // namespace xLearn

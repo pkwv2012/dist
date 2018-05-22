@@ -72,7 +72,7 @@ public:
         for (int j = 0; j < val.size(); ++j) {
           float gradient = req_data.vals[i * len + j];
           //gradient += regu_lambda * gradient;
-          val[j] -= learning_rate * gradient;
+          val[j] += learning_rate * gradient;
         }
       } else {
         for (int j = 0; j < val.size(); ++j) {
