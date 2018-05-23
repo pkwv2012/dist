@@ -18,6 +18,7 @@ float learning_rate = 0.1;
 
 int v_dim = 1;
 
+// `kAlign` can be will designed.
 extern const int kAlign;
 
 /* Index Table

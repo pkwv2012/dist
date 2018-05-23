@@ -89,19 +89,20 @@ real_t FFMScore::CalcScore(const SparseRow* row,
 // Using the SSE to accelerate vector operation.
 void FFMScore::CalcGrad(const SparseRow* row,
                         Model& model,
+                        Model& gradient,
                         real_t pg,
                         real_t norm) {
   // Using sgd
   if (opt_type_.compare("sgd") == 0) {
-    this->calc_grad_sgd(row, model, pg, norm);
+    this->calc_grad_sgd(row, model, model, pg, norm);
   }
   // Using adagrad
   else if (opt_type_.compare("adagrad") == 0) {
-    this->calc_grad_adagrad(row, model, pg, norm);
+    this->calc_grad_adagrad(row, model, model, pg, norm);
   }
   // Using ftrl 
   else if (opt_type_.compare("ftrl") == 0) {
-    this->calc_grad_ftrl(row, model, pg, norm);
+    this->calc_grad_ftrl(row, model, model, pg, norm);
   }
 }
 
@@ -117,24 +118,26 @@ void FFMScore::CalcGrad(const SparseRow* row,
 // Calculate gradient and update current model using sgd
 void FFMScore::calc_grad_sgd(const SparseRow* row,
                              Model& model,
+                             Model& gradient,
                              real_t pg,
                              real_t norm) {
   /*********************************************************
    *  linear term and bias term                            *
    *********************************************************/
   real_t sqrt_norm = sqrt(norm);
-  real_t *w = model.GetParameter_w();
+  real_t* w = model.GetParameter_w();
+  real_t* w_out = gradient.GetParameter_w();
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
     real_t &wl = w[iter->feat_id];
     real_t g = regu_lambda_*wl+pg*iter->feat_val*sqrt_norm;
-    wl -= (learning_rate_ * g);
+    w_out[iter->feat_id] -= (learning_rate_ * g);
   }
   // bias
   w = model.GetParameter_b();
-  real_t &wb = w[0];
+  w_out = gradient.GetParameter_b();
   real_t g = pg;
-  wb -= (learning_rate_ * g);
+  w_out[0] -= (learning_rate_ * g);
   /*********************************************************
    *  latent factor                                        *
    *********************************************************/
@@ -142,6 +145,7 @@ void FFMScore::calc_grad_sgd(const SparseRow* row,
   index_t align1 = model.GetNumField() * align0;
   index_t align = kAlign * model.GetAuxiliarySize();
   w = model.GetParameter_v();
+  w_out = gradient.GetParameter_v();
   __m128 XMMpg = _mm_set1_ps(pg);
   __m128 XMMlr = _mm_set1_ps(learning_rate_);
   __m128 XMMlamb = _mm_set1_ps(regu_lambda_);
@@ -157,11 +161,15 @@ void FFMScore::calc_grad_sgd(const SparseRow* row,
       real_t v2 = iter_j->feat_val;
       real_t* w1_base = w + j1*align1 + f2*align0;
       real_t* w2_base = w + j2*align1 + f1*align0;
+      real_t* w1_base_out = w_out + j1*align1 + f2*align0;
+      real_t* w2_base_out = w_out + j2*align1 + f1*align0;
       __m128 XMMv = _mm_set1_ps(v1*v2*norm);
       __m128 XMMpgv = _mm_mul_ps(XMMv, XMMpg);
       for (index_t d = 0; d < align0; d += align) {
         real_t *w1 = w1_base + d;
         real_t *w2 = w2_base + d;
+        real_t *w1_out = w1_base_out + d;
+        real_t *w2_out = w2_base_out + d;
         __m128 XMMw1 = _mm_load_ps(w1);
         __m128 XMMw2 = _mm_load_ps(w2);
         __m128 XMMg1 = _mm_add_ps(
@@ -170,10 +178,12 @@ void FFMScore::calc_grad_sgd(const SparseRow* row,
         __m128 XMMg2 = _mm_add_ps(
                        _mm_mul_ps(XMMlamb, XMMw2),
                        _mm_mul_ps(XMMpgv, XMMw1));
-        XMMw1 = _mm_sub_ps(XMMw1, _mm_mul_ps(XMMlr, XMMg1));
-        XMMw2 = _mm_sub_ps(XMMw2, _mm_mul_ps(XMMlr, XMMg2));
-        _mm_store_ps(w1, XMMw1);
-        _mm_store_ps(w2, XMMw2);
+        __m128 XMMw1_out = _mm_load_ps(w1_out);
+        __m128 XMMw2_out = _mm_load_ps(w2_out);
+        XMMw1_out = _mm_sub_ps(XMMw1_out, _mm_mul_ps(XMMlr, XMMg1));
+        XMMw2_out = _mm_sub_ps(XMMw2_out, _mm_mul_ps(XMMlr, XMMg2));
+        _mm_store_ps(w1_out, XMMw1_out);
+        _mm_store_ps(w2_out, XMMw2_out);
       }
     }
   }
@@ -183,6 +193,7 @@ void FFMScore::calc_grad_sgd(const SparseRow* row,
 // Calculate gradient and update current model using adagrad
 void FFMScore::calc_grad_adagrad(const SparseRow* row,
                                  Model& model,
+                                 Model& gradient,
                                  real_t pg,
                                  real_t norm) {
   /*********************************************************
@@ -262,6 +273,7 @@ void FFMScore::calc_grad_adagrad(const SparseRow* row,
 // Calculate gradient and update current model using ftrl
 void FFMScore::calc_grad_ftrl(const SparseRow* row,
                               Model& model,
+                              Model& gradient,
                               real_t pg,
                               real_t norm) {
   /*********************************************************

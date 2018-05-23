@@ -11,6 +11,7 @@
 
 namespace xLearn {
 
+// `kAlign` can be will designed.
 extern const int kAlign;
 
 class ParameterInitializer {

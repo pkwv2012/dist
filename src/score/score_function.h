@@ -78,6 +78,7 @@ class Score {
   // model parameters
   virtual void CalcGrad(const SparseRow* row,
                         Model& model,
+                        Model& gradient,
                         real_t pg,
                         real_t norm = 1.0) = 0;
 

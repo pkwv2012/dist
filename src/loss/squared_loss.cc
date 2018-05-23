@@ -96,7 +96,7 @@ void sq_gradient_thread(const DMatrix* matrix,
     // partial gradient: -error
     real_t pg = pred - matrix->Y[i];
     // real gradient and update
-    score_func->CalcGrad(row, *model, pg, norm);
+    score_func->CalcGrad(row, *model, *model, pg, norm);
   }
   *sum *= 0.5;
 }

@@ -48,6 +48,7 @@ class LinearScore : public Score {
   // model parameters.
   void CalcGrad(const SparseRow* row,
                 Model& model,
+                Model& gradient,
                 real_t pg,
                 real_t norm = 1.0);
 
@@ -62,18 +63,21 @@ class LinearScore : public Score {
   // Calculate gradient and update model using sgd
   void calc_grad_sgd(const SparseRow* row,
                      Model& model,
+                     Model& gradient,
                      real_t pg,
                      real_t norm = 1.0);
 
   // Calculate gradient and update model using adagrad
   void calc_grad_adagrad(const SparseRow* row,
                          Model& model,
+                         Model& gradient,
                          real_t pg,
                          real_t norm = 1.0);
 
   // Calculate gradient and update model using ftrl
   void calc_grad_ftrl(const SparseRow* row,
                       Model& model,
+                      Model& gradient,
                       real_t pg,
                       real_t norm = 1.0);
 

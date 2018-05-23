@@ -99,7 +99,7 @@ static void ce_gradient_thread(const DMatrix* matrix,
     *sum += log1p(exp(-y*pred));
     real_t pg = -y/(1.0+(1.0/exp(-y*pred)));
     // real gradient and update
-    score_func->CalcGrad(row, *model, pg, norm);
+    score_func->CalcGrad(row, *model, *model, pg, norm);
   }
 }
 
