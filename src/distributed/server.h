@@ -1,12 +1,13 @@
 #include "iostream"
 #include "src/base/math.h"
 #include "src/data/hyper_parameters.h"
+#include "src/data/parameter_initializer.h"
 #include "src/distributed/dist_score_function.h"
 #include "ps/ps.h"
 
 #include <time.h>
 
-namespace xlearn {
+namespace xLearn {
 float alpha = 0.001;
 float beta = 1.0;
 float lambda1 = 0.00001;
@@ -16,6 +17,8 @@ float regu_lambda = 0.1;
 float learning_rate = 0.1;
 
 int v_dim = 1;
+
+extern const int kAlign;
 
 /* Index Table
  * index_t(-1 or max_feature_id + 1): bias
@@ -56,7 +59,8 @@ public:
     ps::KVPairs<V> res;
     int num_K = is_weight_ ? 1 : hyper_param_->num_K;
     int num_field = is_weight_ ? 1 : hyper_param_->num_field;
-    int len = num_K * num_field;
+    int k_aligned = is_weight_ ? 1 : ceil((real_t)num_K / kAlign) * kAlign;
+    int len = k_aligned * num_field;
     if (hyper_param_->score_func.compare("linear") == 0) {
       CHECK_EQ(num_K, 1);
       CHECK_EQ(num_field, 1);
@@ -77,7 +81,9 @@ public:
         store_[key] = std::vector<V>(len, 0.0);
         if (!is_weight_ && hyper_param_->score_func.compare("fm") == 0) {
           LOG(INFO) << "num_K=" << hyper_param_->num_K << "||scale=" << hyper_param_->model_scale << std::endl;
-          InitializeFMLatent(store_[key].data(), hyper_param_->num_K, hyper_param_->model_scale);
+          ParameterInitializer::Get()->InitializeLatentFactor(store_[key].data(), hyper_param_->auxiliary_size,
+                                     hyper_param_->score_func, hyper_param_->num_K, hyper_param_->num_field,
+                                     hyper_param_->model_scale);
         }
       }
       std::vector<V>& val = store_[key];
