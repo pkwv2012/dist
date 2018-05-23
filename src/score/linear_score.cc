@@ -100,7 +100,7 @@ void LinearScore::calc_grad_adagrad(const SparseRow* row,
                                     real_t norm) {
   // linear term
   real_t* w = model.GetParameter_w();
-  real_t* w_out = model.GetParameter_w();
+  real_t* w_out = gradient.GetParameter_w();
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
     real_t gradient = pg * iter->feat_val;
@@ -113,7 +113,7 @@ void LinearScore::calc_grad_adagrad(const SparseRow* row,
   }
   // bias
   w = model.GetParameter_b();
-  w_out = model.GetParameter_b();
+  w_out = gradient.GetParameter_b();
   real_t &wbg = w[1];
   real_t g = pg;
   w_out[1] += g*g;
@@ -129,40 +129,48 @@ void LinearScore::calc_grad_ftrl(const SparseRow* row,
   // linear term
   real_t sqrt_norm = sqrt(norm);
   real_t *w = model.GetParameter_w();
+  real_t* w_out = gradient.GetParameter_w();
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
     real_t &wl = w[iter->feat_id*3];
     real_t &wlg = w[iter->feat_id*3+1];
     real_t &wlz = w[iter->feat_id*3+2];
+    real_t &wl_out = w_out[iter->feat_id*3];
+    real_t &wlg_out = w_out[iter->feat_id*3+1];
+    real_t &wlz_out = w_out[iter->feat_id*3+2];
     real_t g = lambda_2_*wl+pg*iter->feat_val*sqrt_norm; 
     real_t old_wlg = wlg;
-    wlg += g*g;
+    wlg_out += g*g;
     real_t sigma = (sqrt(wlg)-sqrt(old_wlg)) / alpha_;
-    wlz += (g-sigma*wl);
+    wlz_out += (g-sigma*wl);
     int sign = wlz > 0 ? 1:-1;
     if (sign*wlz <= lambda_1_) {
-      wl = 0;
+      wl_out = 0;
     } else {
-      wl = (sign*lambda_1_-wlz) / 
+      wl_out = (sign*lambda_1_-wlz) /
            ((beta_ + sqrt(wlg)) / 
             alpha_ + lambda_2_);
     }
   }
   // bias
   w = model.GetParameter_b();
+  w_out = gradient.GetParameter_b();
   real_t &wb = w[0];
   real_t &wbg = w[1];
   real_t &wbz = w[2];
+  real_t &wb_out = w_out[0];
+  real_t &wbg_out = w_out[1];
+  real_t &wbz_out = w_out[2];
   real_t g = pg;
   real_t old_wbg = wbg;
-  wbg += g*g;
+  wbg_out += g*g;
   real_t sigma = (sqrt(wbg)-sqrt(old_wbg)) / alpha_;
-  wbz += (g-sigma*wb);
+  wbz_out += (g-sigma*wb);
   int sign = wbz > 0 ? 1:-1;
   if (sign*wbz <= lambda_1_) {
-    wb = 0;
+    wb_out = 0;
   } else {
-    wb = (sign*lambda_1_-wbz) / 
+    wb_out = (sign*lambda_1_-wbz) /
          ((beta_ + sqrt(wbg)) / 
           alpha_ + lambda_2_);
   }

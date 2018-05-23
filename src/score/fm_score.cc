@@ -293,40 +293,48 @@ void FMScore::calc_grad_ftrl(const SparseRow* row,
    *********************************************************/
   real_t sqrt_norm = sqrt(norm);
   real_t *w = model.GetParameter_w();
+  real_t* w_out = gradient.GetParameter_w();
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
     real_t &wl = w[iter->feat_id*3];
     real_t &wlg = w[iter->feat_id*3+1];
     real_t &wlz = w[iter->feat_id*3+2];
-    real_t g = lambda_2_*wl+pg*iter->feat_val*sqrt_norm; 
+    real_t &wl_out = w_out[iter->feat_id*3];
+    real_t &wlg_out = w_out[iter->feat_id*3+1];
+    real_t &wlz_out = w_out[iter->feat_id*3+2];
+    real_t g = lambda_2_*wl+pg*iter->feat_val*sqrt_norm;
     real_t old_wlg = wlg;
-    wlg += g*g;
+    wlg_out += g*g;
     real_t sigma = (sqrt(wlg)-sqrt(old_wlg)) / alpha_;
-    wlz += (g-sigma*wl);
+    wlz_out += (g-sigma*wl);
     int sign = wlz > 0 ? 1:-1;
     if (sign*wlz <= lambda_1_) {
-      wl = 0;
+      wl_out = 0;
     } else {
-      wl = (sign*lambda_1_-wlz) / 
+      wl_out = (sign*lambda_1_-wlz) /
            ((beta_ + sqrt(wlg)) / 
             alpha_ + lambda_2_);
     }
   }
   // bias
   w = model.GetParameter_b();
+  w_out = gradient.GetParameter_b();
   real_t &wb = w[0];
   real_t &wbg = w[1];
   real_t &wbz = w[2];
+  real_t &wb_out = w_out[0];
+  real_t &wbg_out = w_out[1];
+  real_t &wbz_out = w_out[2];
   real_t g = pg;
   real_t old_wbg = wbg;
-  wbg += g*g;
+  wbg_out += g*g;
   real_t sigma = (sqrt(wbg)-sqrt(old_wbg)) / alpha_;
-  wbz += (g-sigma*wb);
+  wbz_out += (g-sigma*wb);
   int sign = wbz > 0 ? 1:-1;
   if (sign*wbz <= lambda_1_) {
-    wb = 0;
+    wb_out = 0;
   } else {
-    wb = (sign*lambda_1_-wbz) / 
+    wb_out = (sign*lambda_1_-wbz) /
          ((beta_ + sqrt(wbg)) / 
           alpha_ + lambda_2_);
   }  
@@ -359,12 +367,16 @@ void FMScore::calc_grad_ftrl(const SparseRow* row,
     index_t j1 = iter->feat_id;
     real_t v1 = iter->feat_val;
     real_t *w_base = model.GetParameter_v() + j1 * align0;
+    real_t *w_base_out = gradient.GetParameter_v() + j1 * align0;
     __m128 XMMv = _mm_set1_ps(v1*norm);
     __m128 XMMpgv = _mm_mul_ps(XMMpg, XMMv);
     for (index_t d = 0; d < aligned_k; d += kAlign) {
       real_t* w = w_base + d;
       real_t* wg = w_base + aligned_k + d;
       real_t* z = w_base + aligned_k*2 + d;
+      real_t* w_out = w_base_out + d;
+      real_t* wg_out = w_base_out + aligned_k + d;
+      real_t* z_out = w_base_out + aligned_k*2 + d;
       __m128 XMMs = _mm_load_ps(s+d);
       __m128 XMMw = _mm_load_ps(w);
       __m128 XMMwg = _mm_load_ps(wg);
@@ -380,21 +392,23 @@ void FMScore::calc_grad_ftrl(const SparseRow* row,
                         _mm_add_ps(XMMwg,
                         _mm_mul_ps(XMMg, XMMg))),
                         _mm_sqrt_ps(XMMwg)), XMMalpha);
-      XMMz = _mm_add_ps(XMMz,
+      __m128 XMMz_out = _mm_load_ps(z_out);
+      XMMz_out = _mm_add_ps(XMMz_out,
              _mm_sub_ps(XMMg,
              _mm_mul_ps(XMMsigma, XMMw)));
-      _mm_store_ps(z, XMMz);
-      XMMwg = _mm_add_ps(XMMwg,
+      _mm_store_ps(z_out, XMMz_out);
+      __m128 XMMwg_out = _mm_load_ps(wg_out);
+      XMMwg_out = _mm_add_ps(XMMwg_out,
               _mm_mul_ps(XMMg, XMMg));
-      _mm_store_ps(wg, XMMwg);
+      _mm_store_ps(wg_out, XMMwg_out);
       // Update w. SSE mat not faster.
       for (size_t i = 0; i < kAlign; ++i) {
         real_t z_value = *(z+i);
         int sign = z_value > 0 ? 1:-1;
         if (sign * z_value <= lambda_1_) {
-          *(w+i) = 0;
+          *(w_out+i) = 0;
         } else {
-          *(w+i) = (sign*lambda_1_-z_value) / 
+          *(w_out+i) = (sign*lambda_1_-z_value) /
               ((beta_ + sqrt(*(wg+i))) / alpha_ + lambda_2_);
         }
       }
