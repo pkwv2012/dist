@@ -2,7 +2,6 @@
 #include "src/base/math.h"
 #include "src/data/hyper_parameters.h"
 #include "src/data/parameter_initializer.h"
-#include "src/distributed/dist_score_function.h"
 #include "ps/ps.h"
 
 #include <time.h>
