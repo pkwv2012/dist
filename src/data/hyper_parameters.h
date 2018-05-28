@@ -148,6 +148,8 @@ struct HyperParam {
   int num_worker = 0;
   /* Number of parameter server for store model parameters */
   int num_server = 0;
+  /* Decaying speed used for mini-batch */
+  double decay_speed = 1.0;
 };
 
 }  // namespace XLEARN

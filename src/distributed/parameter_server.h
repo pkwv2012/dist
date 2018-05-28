@@ -26,8 +26,10 @@ and set the model parameters.
 
 #include <vector>
 
+#include "ps-lite/include/ps/kv_app.h"
 #include "src/base/common.h"
 #include "src/data/data_structure.h"
+#include "src/data/model_parameters.h"
 
 namespace xLearn {
 
@@ -38,8 +40,11 @@ namespace xLearn {
 class KVStore {
  public:
    // Constructor and Destructor
-   KVStore() { }
-   ~KVStore() { }
+   KVStore(int thread_id = 0)
+    : kv_w_(0, thread_id), kv_v_(1, thread_id) {
+   }
+
+   virtual ~KVStore() { }
 
    // Initial KVStore. 
    // Invoke this function before we use it.
@@ -56,6 +61,10 @@ class KVStore {
    //  ------------------------------------------------------
    virtual void Push(const std::vector<index_t>& key, 
    	                 const std::vector<real_t>& value);
+
+  // key.back() is the bias id.
+   virtual void Push(std::vector<ps::Key>& key,
+                     Model& gradient);
 
    // Push a list of (key, value_list) into store.
    // For example:
@@ -78,8 +87,12 @@ class KVStore {
    // |  key:   |  0  |  2  |  4  |  5  |  6   |  7   |  9   |
    // | value:  | 0.2 | 1.0 | 0.5 | 1.0 | 0.33 |  0.7 |  0.8 |
    //  ------------------------------------------------------
-   virtual void Pull(const std::vector<index_t>& key, 
+   virtual void Pull(const std::vector<index_t>& key,
    	                 std::vector<real_t>* value);
+
+  // key.back() is the bias id.
+   virtual void Pull(std::vector<ps::Key>& key,
+                     Model* gradient);
 
    // Pull the value list for a list of keys from store.
    // For example:
@@ -125,7 +138,9 @@ class KVStore {
 
  private:
   /* The number of server */
-  size_t server_num_;  
+  size_t server_num_;
+  ps::KVWorker<real_t> kv_w_;
+  ps::KVWorker<real_t> kv_v_;
 
   DISALLOW_COPY_AND_ASSIGN(KVStore);
 };

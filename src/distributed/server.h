@@ -45,8 +45,9 @@ template <class V>
 class KVServerSGDHandle {
 public:
   KVServerSGDHandle(const xLearn::HyperParam* hyper_param, bool is_weight)
-    : is_weight_(is_weight) {
+    : is_weight_(is_weight), decay_speed_(hyper_param->decay_speed) {
     hyper_param_ = hyper_param;
+    mini_batch_count_ = 0;
   }
 
 public:
@@ -64,6 +65,7 @@ public:
     if (hyper_param_->score_func.compare("linear") == 0) {
       CHECK_EQ(num_K, 1);
       CHECK_EQ(num_field, 1);
+      CHECK_EQ(len, 1);
     } else if (hyper_param_->score_func.compare("fm") == 0) {
       CHECK_EQ(num_field, 1);
     }
@@ -79,7 +81,9 @@ public:
       ps::Key key = req_data.keys[i];
       if (store_.find(key) == store_.end()) {
         store_[key] = std::vector<V>(len, 0.0);
-        if (!is_weight_ && hyper_param_->score_func.compare("fm") == 0) {
+        if (!is_weight_
+            && (hyper_param_->score_func.compare("fm") == 0
+                || hyper_param_->score_func.compare("ffm") == 0)) {
           LOG(INFO) << "num_K=" << hyper_param_->num_K << "||scale=" << hyper_param_->model_scale << std::endl;
           ParameterInitializer::Get()->InitializeLatentFactor(store_[key].data(), hyper_param_->auxiliary_size,
                                      hyper_param_->score_func, hyper_param_->num_K, hyper_param_->num_field,
@@ -91,7 +95,7 @@ public:
         for (int j = 0; j < val.size(); ++j) {
           float gradient = req_data.vals[i * len + j];
           //gradient += regu_lambda * gradient;
-          val[j] += learning_rate * gradient;
+          val[j] += learning_rate * gradient * sqrt(decay_speed_ / (mini_batch_count_ + decay_speed_));
         }
       } else {
         for (int j = 0; j < val.size(); ++j) {
@@ -99,6 +103,7 @@ public:
         }
       }
     }
+    ++ mini_batch_count_;
     LOG(INFO) << customer_id << "   Responsing" << std::endl;
     // res.DebugPrint(customer_id);
     server->Response(req_meta, res);
@@ -110,6 +115,8 @@ public:
   // is weight or latent vector
   bool is_weight_;
   const xLearn::HyperParam* hyper_param_;
+  int mini_batch_count_;
+  const double decay_speed_;
 };
 
 typedef struct AdaGradEntry {

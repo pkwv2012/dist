@@ -35,6 +35,27 @@ void KVStore::Push(const std::vector<index_t>& key,
  // TODO(chao)
 }
 
+void KVStore::Push(std::vector<ps::Key> &key, Model &gradient) {
+  {
+    index_t aux_size = gradient.GetAuxiliarySize();
+    real_t* weight = gradient.GetParameter_w();
+    for (index_t i = 0; i < gradient.GetAuxiliarySize(); ++ i) {
+      *(weight + (key.size() - 1) * aux_size + i) = *(gradient.GetParameter_b() + i);
+    }
+    ps::SArray<real_t> w(weight, gradient.GetNumParameter_w() + aux_size, false);
+    ps::SArray<ps::Key> ps_key(key.data(), key.size(), false);
+    CHECK_EQ(ps_key.size() * aux_size, w.size());
+    kv_w_.Wait(kv_w_.ZPush(ps::SArray<ps::Key>(ps_key), w));
+  }
+  ps::SArray<real_t> v(gradient.GetParameter_v(), gradient.GetNumParameter_v(), false);
+  if (gradient.GetScoreFunction().compare("fm") == 0
+      || gradient.GetScoreFunction().compare("ffm") == 0) {
+    ps::SArray<ps::Key > ps_key(key.data(), key.size() - 1, false);
+    CHECK_EQ(ps_key.size(), v.size());
+    kv_v_.Wait((kv_v_.ZPush(ps::SArray<ps::Key>(ps_key), v)));
+  }
+}
+
 // Push a list of (key, value_list) into store.
 // For example:
 //  ------------------------------------------------------
@@ -78,6 +99,23 @@ void KVStore::Pull(const std::vector<index_t>& key,
    	               std::vector<real_t>* value_list,
    	               const size_t length) {
  // TODO(Chao)
+}
+
+void KVStore::Pull(std::vector<ps::Key>& key,
+                   Model* model) {
+  index_t aux_size = model->GetAuxiliarySize();
+  ps::SArray<real_t> w(model->GetParameter_w(), model->GetNumParameter_w() + aux_size, false);
+  {
+    ps::SArray<ps::Key> ps_key(key.data(), key.size(), false);
+    kv_w_.Wait(kv_w_.ZPull(ps::SArray<ps::Key>(ps_key), &w));
+    model->SetParamB(w.data() +((key.size() - 1) * model->GetAuxiliarySize()));
+  }
+  ps::SArray<real_t> v(model->GetParameter_v(), model->GetNumParameter_v(), false);
+  if (model->GetScoreFunction().compare("fm") == 0
+      || model->GetScoreFunction().compare("ffm") == 0) {
+    ps::SArray<ps::Key> ps_key(key.data(), key.size() - 1, false);
+    kv_v_.Wait((kv_v_.ZPull(ps::SArray<ps::Key>(ps_key), &v)));
+  }
 }
 
 //------------------------------------------------------------------------------

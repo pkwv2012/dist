@@ -118,7 +118,7 @@ class Model {
   void Shrink();
 
   // Get the size of auxiliary cache size
-  inline real_t GetAuxiliarySize() { return aux_size_; }
+  inline index_t GetAuxiliarySize() { return aux_size_; }
 
   // Get the pointer of linear term.
   inline real_t* GetParameter_w() { return param_w_; }

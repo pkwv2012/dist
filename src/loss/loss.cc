@@ -19,6 +19,7 @@ Author: Chao Ma (mctt90@gmail.com)
 This file is the implementation of the base Loss class.
 */
 
+#include <src/distributed/parameter_server.h>
 #include "ps-lite/include/ps/kv_app.h"
 #include "src/loss/loss.h"
 #include "src/loss/squared_loss.h"
@@ -61,8 +62,7 @@ void pred_thread_mini_batch(DMatrix* matrix,
                             int thread_id,
                             index_t bias_idx) {
   CHECK_GE(end_idx, start_idx);
-  ps::KVWorker<real_t> kv_w(0, thread_id);
-  ps::KVWorker<real_t> kv_v(1, thread_id);
+  KVStore xlearn_worker(thread_id);
   for (size_t i = start_idx; i < end_idx; i += batch_size) {
     size_t i_end_idx = std::min(end_idx, i + batch_size);
     index_t sample_num = i_end_idx - i;
@@ -70,27 +70,9 @@ void pred_thread_mini_batch(DMatrix* matrix,
     // to dense
     matrix->ToDenseMatrix<ps::Key>(i, i_end_idx, dense_to_sparse);
     index_t feat_num = dense_to_sparse.size();
-    std::vector<ps::Key> feat_idx = dense_to_sparse;
     // add bias
-    feat_idx.push_back(bias_idx);
-    //std::vector<real_t> param_w(feat_idx.size());
-    Vector<real_t> param_w(feat_idx.size(), model->GetNumParameter_w(), model->GetParameter_w());
-    auto kv_w_ts = kv_w.Pull(feat_idx, &param_w);
-    kv_w.Wait(kv_w_ts);
-    //std::vector<real_t> param_v;
-    Vector<real_t> param_v(dense_to_sparse.size(), model->GetNumParameter_v(), model->GetParameter_v());
-    if (model->GetScoreFunction().compare("fm") == 0
-        || model->GetScoreFunction().compare("ffm") == 0) {
-      param_v.resize(dense_to_sparse.size()
-                     * model->GetNumK()
-                     * model->GetNumField());
-      auto kv_v_ts = kv_v.Pull(dense_to_sparse, &param_v);
-      kv_v.Wait(kv_v_ts);
-    }
-    //model->SetParamW(param_w.data(), param_w.size() - 1);
-    //model->SetParamB(param_w.data() + feat_num);
-    //model->SetParamV(param_v.data());
-    model->SetParamB(param_w.data() + feat_num);
+    dense_to_sparse.push_back(bias_idx);
+    xlearn_worker.Pull(dense_to_sparse, model);
 
     for (int j = i; j < i_end_idx; ++ j) {
       SparseRow* row = matrix->row[j];
@@ -164,6 +146,7 @@ void Loss::PredictDist(DMatrix* matrix,
 // Calculate gradient in one thread.
 static void gradient_thread_mini_batch(DMatrix* matrix,
                                           Model* model,
+                                          Model* gradient,
                                           Score* score_func,
                                           bool is_norm,
                                           real_t* sum,
@@ -176,8 +159,7 @@ static void gradient_thread_mini_batch(DMatrix* matrix,
                                           std::function<real_t(const real_t&, const real_t&)> calc_pg) {
   CHECK_GE(end_idx, start_idx);
   *sum = 0;
-  ps::KVWorker<real_t> kv_w(0, thread_id);
-  ps::KVWorker<real_t> kv_v(1, thread_id);
+  KVStore xlearn_worker(thread_id);
   //index_t bias_idx = model->GetNumFeature() - 1;
   for (size_t i = start_idx; i < end_idx; i += batch_size) {
     size_t i_end_idx = std::min(end_idx, i + batch_size);
@@ -185,29 +167,9 @@ static void gradient_thread_mini_batch(DMatrix* matrix,
     std::vector<ps::Key> dense_to_sparse;
     // to dense
     matrix->ToDenseMatrix<ps::Key>(i, i_end_idx, dense_to_sparse);
-    index_t feat_num = dense_to_sparse.size();
-    std::vector<ps::Key> feat_idx = dense_to_sparse;
     // add bias
-    feat_idx.push_back(bias_idx);
-    //std::vector<real_t> param_w(feat_idx.size());
-    Vector<real_t> param_w(feat_idx.size(), model->GetNumParameter_w(), model->GetParameter_w());
-    auto kv_w_ts = kv_w.Pull(feat_idx, &param_w);
-    kv_w.Wait(kv_w_ts);
-    //std::vector<real_t> param_v;
-    Vector<real_t> param_v(dense_to_sparse.size(), model->GetNumParameter_v(), model->GetParameter_v());
-    if (model->GetScoreFunction().compare("fm") == 0
-        || model->GetScoreFunction().compare("ffm") == 0) {
-      param_v.resize(dense_to_sparse.size()
-                     * model->GetNumK()
-                     * model->GetNumField());
-      auto kv_v_ts = kv_v.Pull(dense_to_sparse, &param_v);
-      kv_v.Wait(kv_v_ts);
-    }
-    //kv_w.Wait(kv_w_ts);
-    //model->SetParamW(param_w.data(), param_w.size() - 1);
-    //model->SetParamB(param_w.data() + feat_num);
-    //model->SetParamV(param_v.data());
-    model->SetParamB(param_w.data() + feat_num);
+    dense_to_sparse.push_back(bias_idx);
+    xlearn_worker.Pull(dense_to_sparse, model);
 
     real_t pg_sum = 0.0;
     for (int j = i; j < i_end_idx; ++ j) {
@@ -222,21 +184,14 @@ static void gradient_thread_mini_batch(DMatrix* matrix,
       pg_sum += calc_pg(matrix->Y[i], pred);
     }
     real_t pg = pg_sum / sample_num;
-    std::vector<real_t> gradient_w(param_w.size(), 0.0);
-    std::vector<real_t> gradient_v(param_v.size(), 0.0);
     for (int j = i; j < i_end_idx; ++ j) {
       SparseRow* row = matrix->row[j];
       real_t norm = is_norm ? matrix->norm[i] : 1.0;
-      score_func->CalcGrad(row, *model, pg, gradient_w, gradient_v, norm);
+      score_func->CalcGrad(row, *model, *gradient, pg, norm);
     }
     // to sparse
     matrix->ToSparseMatrix(i, i_end_idx, dense_to_sparse);
-    kv_w_ts = kv_w.Push(feat_idx, gradient_w);
-    if (model->GetScoreFunction().compare("fm") == 0
-        || model->GetScoreFunction().compare("ffm") == 0) {
-      kv_v.Wait(kv_v.Push(dense_to_sparse, gradient_v));
-    }
-    kv_w.Wait(kv_w_ts);
+    xlearn_worker.Push(dense_to_sparse, *gradient);
   }
 }
 
@@ -274,6 +229,7 @@ void Loss::CalcGradDist(DMatrix* matrix,
     pool_->enqueue(std::bind(gradient_thread_mini_batch,
                              matrix,
                              &model_i,
+                             &gradient_i,
                              score_func_,
                              norm_,
                              &(sum[i]),
