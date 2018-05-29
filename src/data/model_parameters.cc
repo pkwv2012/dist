@@ -120,6 +120,18 @@ void Model::initial(bool set_val) {
   }
 }
 
+void Model::SetZero() {
+  if (param_w_ != nullptr) {
+    memset(param_w_, 0, sizeof(param_w_));
+  }
+  if (param_b_ != nullptr) {
+    memset(param_b_, 0, sizeof(param_b_));
+  }
+  if (param_v_ != nullptr) {
+    memset(param_v_, 0, sizeof(param_v_));
+  }
+}
+
 // Set value for model
 void Model::set_value() {
   // Use distribution to transform the random unsigned

@@ -27,6 +27,7 @@ This file is the implementation of the Solver class.
 #include <stdexcept>
 #include <cstdio>
 #include <thread>
+#include <ps-lite/include/ps/internal/postoffice.h>
 
 #include "src/base/stringprintf.h"
 #include "src/base/split_string.h"
@@ -256,9 +257,10 @@ void Solver::init_train() {
    *  Read problem                                         *
    *********************************************************/
   DMatrix* matrix = nullptr;
+  const bool& is_distributed = hyper_param_.is_distributed;
   index_t max_feat = 0, max_field = 0;
   for (int i = 0; i < num_reader; ++i) {
-    while(reader_[i]->Samples(matrix)) {
+    while (reader_[i]->Samples(matrix)) {
       int tmp = matrix->MaxFeat();
       if (tmp > max_feat) { max_feat = tmp; }
       if (hyper_param_.score_func.compare("ffm") == 0) {
@@ -269,7 +271,17 @@ void Solver::init_train() {
     // Return to the begining of target file.
     reader_[i]->Reset();
   }
-  hyper_param_.num_feature = max_feat + 1;
+  if (is_distributed) {
+    // count in the bias.
+    CHECK_GT(hyper_param_.num_feature, max_feat + 1);
+    // it's better for equal.
+    CHECK_GE(hyper_param_.num_field, max_field + 1);
+  } else {
+    hyper_param_.num_feature = max_feat + 1;
+    if (hyper_param_.score_func.compare("ffm") == 0) {
+      hyper_param_.num_field = max_field + 1;
+    }
+  }
   // Check overflow:
   // INT_MAX +  = 0
   if (hyper_param_.num_feature == 0) {
@@ -282,7 +294,6 @@ void Solver::init_train() {
                  hyper_param_.num_feature)
   );
   if (hyper_param_.score_func.compare("ffm") == 0) {
-    hyper_param_.num_field = max_field + 1;
     LOG(INFO) << "Number of field: " << hyper_param_.num_field;
     print_info(
       StringPrintf("Number of Field: %d", 
@@ -314,7 +325,8 @@ void Solver::init_train() {
                    hyper_param_.num_field,
                    hyper_param_.num_K,
                    hyper_param_.auxiliary_size,
-                   hyper_param_.model_scale);
+                   hyper_param_.model_scale,
+                   !is_distributed);
   index_t num_param = model_->GetNumParameter();
   hyper_param_.num_param = num_param;
   LOG(INFO) << "Number parameters: " << num_param;
@@ -330,7 +342,7 @@ void Solver::init_train() {
    *  Initialize score function                            *
    *********************************************************/
   score_ = create_score();
-  score_->Initialize(hyper_param_.learning_rate,
+  score_->Initialize(is_distributed ? 1.0f : hyper_param_.learning_rate,
                      hyper_param_.regu_lambda,
                      hyper_param_.alpha,
                      hyper_param_.beta,
@@ -459,6 +471,7 @@ void Solver::init_predict() {
 
 // Start training or inference
 void Solver::StartWork() {
+  ps::Postoffice::Get()->SetServerKeyRanges(hyper_param_.num_feature);
   if (hyper_param_.is_train) {
     LOG(INFO) << "Start training work.";
     start_train_work();

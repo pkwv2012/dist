@@ -51,7 +51,8 @@ void KVStore::Push(std::vector<ps::Key> &key, Model &gradient) {
   if (gradient.GetScoreFunction().compare("fm") == 0
       || gradient.GetScoreFunction().compare("ffm") == 0) {
     ps::SArray<ps::Key > ps_key(key.data(), key.size() - 1, false);
-    CHECK_EQ(ps_key.size(), v.size());
+    CHECK_EQ(ps_key.size() * gradient.GetNumK() * gradient.GetNumField() * gradient.GetAuxiliarySize(),
+             v.size());
     kv_v_.Wait((kv_v_.ZPush(ps::SArray<ps::Key>(ps_key), v)));
   }
 }

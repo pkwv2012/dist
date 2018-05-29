@@ -178,6 +178,7 @@ static void gradient_thread_mini_batch(DMatrix* matrix,
     gradient_i.Initialize(model->GetScoreFunction(), model->GetLossFunction(),
                        dense_to_sparse.size(), model->GetNumField(), model->GetNumK(),
                        model->GetAuxiliarySize());
+    gradient_i.SetZero();
     // add bias
     dense_to_sparse.push_back(bias_idx);
     xlearn_worker.Pull(dense_to_sparse, &model_i);

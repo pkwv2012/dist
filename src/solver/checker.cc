@@ -196,6 +196,7 @@ void Checker::Initialize(bool is_train, int argc, char* argv[]) {
     menu_.push_back(std::string("--num-features"));
     menu_.push_back(std::string("--num-field"));
     menu_.push_back(std::string("--is-distributed"));
+    menu_.push_back(std::string("--decay-speed"));
   } else {  // for Prediction
     menu_.push_back(std::string("-o"));
     menu_.push_back(std::string("-l"));
@@ -341,6 +342,13 @@ bool Checker::check_train_options(HyperParam& hyper_param) {
         bo = false;
       } else {
         hyper_param.opt_type = list[i+1];
+        if (hyper_param.opt_type.compare("sgd") == 0) {
+          hyper_param.auxiliary_size = 1;
+        } else if (hyper_param.opt_type.compare("adagrad") == 0) {
+          hyper_param.auxiliary_size = 2;
+        } else if (hyper_param.opt_type.compare("ftrl") == 0) {
+          hyper_param.auxiliary_size = 3;
+        }
       }
       i += 2;
     } else if (list[i].compare("-v") == 0) {  // validation file
@@ -586,6 +594,16 @@ bool Checker::check_train_options(HyperParam& hyper_param) {
         bo = false;
       } else {
         hyper_param.is_distributed = value;
+      }
+      i += 2;
+    } else if (list[i].compare("--decay-speed") == 0) {
+      real_t value = atof(list[i + 1].c_str());
+      if (value <= 0 ) {
+        StringPrintf("Illegal --decay-speed: '%f'."
+                     "--decay-speed cannot be less than zero", value);
+        bo = false;
+      } else {
+        hyper_param.decay_speed = value;
       }
       i += 2;
     } else {  // no match

@@ -92,10 +92,11 @@ public:
       }
       std::vector<V>& val = store_[key];
       if (req_meta.push) {
+        real_t decay_rate = decay_speed_ < 0.0 ? 1.0 : sqrt(decay_speed_ / (mini_batch_count_ + decay_speed_));
         for (int j = 0; j < val.size(); ++j) {
           float gradient = req_data.vals[i * len + j];
           //gradient += regu_lambda * gradient;
-          val[j] += learning_rate * gradient * sqrt(decay_speed_ / (mini_batch_count_ + decay_speed_));
+          val[j] += learning_rate * gradient * decay_rate;
         }
       } else {
         for (int j = 0; j < val.size(); ++j) {

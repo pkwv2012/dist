@@ -190,6 +190,8 @@ class Model {
     }
   }
 
+  void SetZero();
+
  protected:
   /* Score function
   For now it can be 'linear', 'fm', or 'ffm' */
