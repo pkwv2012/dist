@@ -100,7 +100,8 @@ class Model {
               index_t num_field,
               index_t num_K,
               index_t aux_size,
-              real_t scale = 1.0);
+              real_t scale = 1.0,
+              bool alloc = true);
 
   // Serialize model to a checkpoint file.
   void Serialize(const std::string& filename);

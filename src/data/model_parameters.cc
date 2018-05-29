@@ -45,7 +45,8 @@ void Model::Initialize(const std::string& score_func,
                   index_t num_field,
                   index_t num_K,
                   index_t aux_size,
-                  real_t scale) {
+                  real_t scale,
+                  bool alloc) {
   CHECK(!score_func.empty());
   CHECK(!loss_func.empty());
   CHECK_GT(num_feature, 0);
@@ -77,7 +78,9 @@ void Model::Initialize(const std::string& score_func,
   }
   Timer timer;
   timer.tic();
-  this->initial(true);
+  if (alloc) {
+    this->initial(true);
+  }
   LOG(INFO) << "InitializeTime=" << timer.toc() << std::endl;
 }
 
@@ -87,7 +90,7 @@ void Model::Initialize(const std::string& score_func,
 void Model::initial(bool set_val) {
   try {
     // Conventional malloc for linear term and bias
-    param_w_ = (real_t*)malloc(param_num_w_ * sizeof(real_t));
+    param_w_ = (real_t*)malloc((param_num_w_ + aux_size_) * sizeof(real_t));
     param_b_ = (real_t*)malloc(aux_size_ * sizeof(real_t));
     if (score_func_.compare("fm") == 0 ||
         score_func_.compare("ffm") == 0) {

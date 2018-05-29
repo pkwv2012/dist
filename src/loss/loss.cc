@@ -69,15 +69,18 @@ void pred_thread_mini_batch(DMatrix* matrix,
     std::vector<ps::Key> dense_to_sparse;
     // to dense
     matrix->ToDenseMatrix<ps::Key>(i, i_end_idx, dense_to_sparse);
-    index_t feat_num = dense_to_sparse.size();
+    Model model_i;
+    model_i.Initialize(model->GetScoreFunction(), model->GetLossFunction(),
+                       dense_to_sparse.size(), model->GetNumField(), model->GetNumK(),
+                       model->GetAuxiliarySize());
     // add bias
     dense_to_sparse.push_back(bias_idx);
-    xlearn_worker.Pull(dense_to_sparse, model);
+    xlearn_worker.Pull(dense_to_sparse, &model_i);
 
     for (int j = i; j < i_end_idx; ++ j) {
       SparseRow* row = matrix->row[j];
       real_t norm = is_norm ? matrix->norm[i] : 1.0;
-      (*pred)[j] = score_func_->CalcScore(row, *model, norm);
+      (*pred)[j] = score_func_->CalcScore(row, model_i, norm);
     }
     // to sparse
     matrix->ToSparseMatrix(i, i_end_idx, dense_to_sparse);
@@ -129,7 +132,7 @@ void Loss::PredictDist(DMatrix* matrix,
                        model.GetScale());
     pool_->enqueue(std::bind(pred_thread_mini_batch,
                              matrix,
-                             &model_i,
+                             &model,
                              &pred,
                              score_func_,
                              norm_,
@@ -167,15 +170,23 @@ static void gradient_thread_mini_batch(DMatrix* matrix,
     std::vector<ps::Key> dense_to_sparse;
     // to dense
     matrix->ToDenseMatrix<ps::Key>(i, i_end_idx, dense_to_sparse);
+    Model model_i;
+    model_i.Initialize(model->GetScoreFunction(), model->GetLossFunction(),
+                       dense_to_sparse.size(), model->GetNumField(), model->GetNumK(),
+                       model->GetAuxiliarySize());
+    Model gradient_i;
+    gradient_i.Initialize(model->GetScoreFunction(), model->GetLossFunction(),
+                       dense_to_sparse.size(), model->GetNumField(), model->GetNumK(),
+                       model->GetAuxiliarySize());
     // add bias
     dense_to_sparse.push_back(bias_idx);
-    xlearn_worker.Pull(dense_to_sparse, model);
+    xlearn_worker.Pull(dense_to_sparse, &model_i);
 
     real_t pg_sum = 0.0;
     for (int j = i; j < i_end_idx; ++ j) {
       SparseRow* row = matrix->row[j];
       real_t norm = is_norm ? matrix->norm[i] : 1.0;
-      real_t pred = score_func->CalcScore(row, *model, norm);
+      real_t pred = score_func->CalcScore(row, model_i, norm);
       // partial gradient
       real_t y = matrix->Y[i] > 0 ? 1.0 : -1.0;
       //*sum += log1p(exp(-y*pred));
@@ -187,11 +198,11 @@ static void gradient_thread_mini_batch(DMatrix* matrix,
     for (int j = i; j < i_end_idx; ++ j) {
       SparseRow* row = matrix->row[j];
       real_t norm = is_norm ? matrix->norm[i] : 1.0;
-      score_func->CalcGrad(row, *model, *gradient, pg, norm);
+      score_func->CalcGrad(row, model_i, gradient_i, pg, norm);
     }
     // to sparse
     matrix->ToSparseMatrix(i, i_end_idx, dense_to_sparse);
-    xlearn_worker.Push(dense_to_sparse, *gradient);
+    xlearn_worker.Push(dense_to_sparse, gradient_i);
   }
 }
 
@@ -228,7 +239,7 @@ void Loss::CalcGradDist(DMatrix* matrix,
                           model.GetScale());
     pool_->enqueue(std::bind(gradient_thread_mini_batch,
                              matrix,
-                             &model_i,
+                             &model,
                              &gradient_i,
                              score_func_,
                              norm_,
