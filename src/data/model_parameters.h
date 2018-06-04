@@ -103,6 +103,9 @@ class Model {
               real_t scale = 1.0,
               bool alloc = true);
 
+  // alloc memory for the model.
+  void Initial(bool set_val);
+
   // Serialize model to a checkpoint file.
   void Serialize(const std::string& filename);
 

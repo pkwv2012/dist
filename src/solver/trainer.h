@@ -24,6 +24,7 @@ This file defines the Trainer class.
 #define XLEARN_SOLVER_TRAINER_H_
 
 #include <vector>
+#include <src/distributed/parameter_server.h>
 
 #include "src/base/common.h"
 #include "src/base/format_print.h"
@@ -82,6 +83,16 @@ class Trainer {
   void SaveModel(const std::string& filename) {
     CHECK_NE(filename.empty(), true);
     CHECK_NE(filename.compare("none"), 0);
+    if (is_distributed_) {
+      model_->Initial(false);
+      KVStore xlearn_worker;
+      auto num_feat = model_->GetNumFeature();
+      std::vector<ps::Key> keys(num_feat);
+      for (index_t i = 0; i < num_feat; ++ i) {
+        keys[i] = i;
+      }
+      xlearn_worker.Pull(keys, model_);
+    }
     model_->Serialize(filename);
   }
 

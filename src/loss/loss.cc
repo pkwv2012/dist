@@ -183,7 +183,6 @@ static void gradient_thread_mini_batch(DMatrix* matrix,
     dense_to_sparse.push_back(bias_idx);
     xlearn_worker.Pull(dense_to_sparse, &model_i);
 
-    real_t pg_sum = 0.0;
     for (int j = i; j < i_end_idx; ++ j) {
       SparseRow* row = matrix->row[j];
       real_t norm = is_norm ? matrix->norm[i] : 1.0;
@@ -193,12 +192,7 @@ static void gradient_thread_mini_batch(DMatrix* matrix,
       //*sum += log1p(exp(-y*pred));
       *sum += calc_loss(matrix->Y[i], pred);
       //pg_sum += -y/(1.0+(1.0/exp(-y*pred)));
-      pg_sum += calc_pg(matrix->Y[i], pred);
-    }
-    real_t pg = pg_sum / sample_num;
-    for (int j = i; j < i_end_idx; ++ j) {
-      SparseRow* row = matrix->row[j];
-      real_t norm = is_norm ? matrix->norm[i] : 1.0;
+      real_t pg = calc_pg(matrix->Y[i], pred) / sample_num;
       score_func->CalcGrad(row, model_i, gradient_i, pg, norm);
     }
     // to sparse

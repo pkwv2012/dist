@@ -151,6 +151,12 @@ struct HyperParam {
   /* Decaying speed used for mini-batch.
    * Default -1.0 means no decay*/
   double decay_speed = -1.0f;
+  /* sync or async.
+   * */
+  bool is_sync = false;
+  /* Bounded delay.
+   * */
+  int bounded_delay = 2;
 };
 
 }  // namespace XLEARN

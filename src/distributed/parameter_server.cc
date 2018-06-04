@@ -105,7 +105,7 @@ void KVStore::Pull(const std::vector<index_t>& key,
 void KVStore::Pull(std::vector<ps::Key>& key,
                    Model* model) {
   index_t aux_size = model->GetAuxiliarySize();
-  ps::SArray<real_t> w(model->GetParameter_w(), model->GetNumParameter_w() + aux_size, false);
+  ps::SArray<real_t> w(model->GetParameter_w(), key.size(), false);
   {
     ps::SArray<ps::Key> ps_key(key.data(), key.size(), false);
     kv_w_.Wait(kv_w_.ZPull(ps::SArray<ps::Key>(ps_key), &w));

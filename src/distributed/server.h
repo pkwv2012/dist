@@ -32,15 +32,6 @@ extern const int kAlign;
  *  ...:
  * */
 
-static void InitializeFMLatent(real_t* param, int num_K, real_t scale) {
-  std::default_random_engine generator;
-  std::uniform_real_distribution<real_t> dis(0.0, 1.0);
-  real_t coef = 1.0f / sqrt(num_K) * scale;
-  for (index_t d = 0; d < num_K; ++ d, ++ param) {
-    *param = coef * dis(generator);
-  }
-}
-
 template <class V>
 class KVServerSGDHandle {
 public:
@@ -107,116 +98,25 @@ public:
     }
     ++ mini_batch_count_;
     LOG(INFO) << customer_id << "   Responsing" << std::endl;
-    // res.DebugPrint(customer_id);
+    if (req_meta.push) {
+      //receive_count_ ++;
+    }
     server->Response(req_meta, res);
-    // res.DebugPrint(customer_id);
     LOG(INFO) << customer_id << "    Response finish" << std::endl;
   }
  private:
+  int id(const ps::KVMeta& req_meta) {
+    // TODO
+    return -1;
+  }
   std::unordered_map<ps::Key, std::vector<V>> store_;
   // is weight or latent vector
   bool is_weight_;
   const xLearn::HyperParam* hyper_param_;
   int mini_batch_count_;
+  //std::condition_variable receive_barrier_;
+  //std::atomic<int> receive_count_;
   const double decay_speed_;
-};
-
-typedef struct AdaGradEntry {
-  AdaGradEntry(size_t k = v_dim) {
-    w.resize(k, 0.0);
-    n.resize(k, 0.0);
-  }
-  std::vector<float> w;
-  std::vector<float> n;
-} adagradentry;
-
-struct KVServerAdaGradHandle {
-  void operator() (const ps::KVMeta& req_meta,
-                   const ps::KVPairs<float>& req_data,
-                   ps::KVServer<float>* server) {
-    LOG(INFO) << "AdaGradHandler";
-    size_t keys_size = req_data.keys.size();
-    ps::KVPairs<float> res;
-    if (req_meta.push) {
-      CHECK_EQ(keys_size * v_dim, req_data.vals.size());
-    } else {
-      res.keys = req_data.keys;
-      res.vals.resize(keys_size * v_dim);
-    }
-    for (size_t i = 0; i < keys_size; ++i) {
-      ps::Key key = req_data.keys[i];
-      AdaGradEntry& val = store_[key];
-      if (req_meta.push) {
-        for (int j = 0; j < val.w.size(); ++j) {
-          float gradient = req_data.vals[i * v_dim + j];
-          gradient += regu_lambda * gradient;
-          val.n[j] = gradient * gradient;
-          val.w[j] -= (learning_rate * gradient * InvSqrt(val.n[j]));
-        }
-      } else {
-        for (int j = 0; j < val.w.size(); ++j) {
-          res.vals[i * v_dim + j] = val.w[j];
-        }
-      }
-    }
-    server->Response(req_meta, res);
-  }
- private:
-  std::unordered_map<ps::Key, adagradentry> store_;
-};
-
-typedef struct FTRLEntry{
-  FTRLEntry(size_t k = v_dim) {
-    w.resize(k, 0.0);
-    n.resize(k, 0.0);
-    z.resize(k, 0.0);
-  }
-  std::vector<float> w;
-  std::vector<float> z;
-  std::vector<float> n;
-} ftrlentry;
-
-struct KVServerFTRLHandle {
-  void operator() (const ps::KVMeta& req_meta,
-                   const ps::KVPairs<float>& req_data,
-                   ps::KVServer<float>* server) {
-    LOG(INFO) << "FTRLHandler";
-    size_t keys_size = req_data.keys.size();
-    ps::KVPairs<float> res;
-    if (req_meta.push) {
-      CHECK_EQ(keys_size * v_dim, req_data.vals.size());
-    } else {
-      res.keys = req_data.keys;
-      res.vals.resize(keys_size * v_dim);
-    }
-    for (size_t i = 0; i < keys_size; ++i) {
-      ps::Key key = req_data.keys[i];
-      FTRLEntry& val = store_[key];
-      for (int j = 0; j < val.w.size(); ++j) {
-        if (req_meta.push) {
-          float gradient = req_data.vals[i * v_dim + j];
-          float old_n = val.n[j];
-          float n = old_n + gradient * gradient;
-          val.z[j] += gradient - (std::sqrt(n) - std::sqrt(old_n)) / alpha * val.w[j];
-          val.n[j] = n;
-          if (std::abs(val.z[j]) <= lambda1) {
-            val.w[j] = 0.0;
-          } else {
-            float tmpr= 0.0;
-            if (val.z[j] > 0.0) tmpr = val.z[j] - lambda1;
-            if (val.z[j] < 0.0) tmpr = val.z[j] + lambda1;
-            float tmpl = -1 * ( (beta + std::sqrt(val.n[j]))/alpha  + lambda2 );
-            val.w[j] = tmpr / tmpl;
-          }
-        } else {
-          res.vals[i * v_dim + j] = val.w[j];
-        }
-      }
-    }
-    server->Response(req_meta, res);
-  }
- private:
-  std::unordered_map<ps::Key, ftrlentry> store_;
 };
 
 template<class V>
@@ -249,12 +149,14 @@ class XLearnServer{
       kv_v_->set_request_handle(KVServerSGDHandle<V>(&hyper_param_, false));
     }
     if (hyper_param_.opt_type.compare("adagrad") == 0) {
-      kv_w_->set_request_handle(KVServerAdaGradHandle());
-      kv_v_->set_request_handle(KVServerAdaGradHandle());
+      CHECK(0) << "Adagrad not declared" << std::endl;
+      //kv_w_->set_request_handle(KVServerAdaGradHandle());
+      //kv_v_->set_request_handle(KVServerAdaGradHandle());
     }
     if (hyper_param_.opt_type.compare("ftrl") == 0) {
-      kv_w_->set_request_handle(KVServerFTRLHandle());
-      kv_v_->set_request_handle(KVServerFTRLHandle());
+      CHECK(0) << "Ftrl not declared" << std::endl;
+      //kv_w_->set_request_handle(KVServerFTRLHandle());
+      //kv_v_->set_request_handle(KVServerFTRLHandle());
     }
     std::cout << "init server success " << std::endl;
   }

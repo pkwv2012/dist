@@ -28,6 +28,7 @@ This file is the implementation of the Solver class.
 #include <cstdio>
 #include <thread>
 #include <ps-lite/include/ps/internal/postoffice.h>
+#include <ps-lite/include/ps/ps.h>
 
 #include "src/base/stringprintf.h"
 #include "src/base/split_string.h"
@@ -125,6 +126,9 @@ void Solver::Initialize(int argc, char* argv[]) {
   checker(argc, argv);
   // Initialize log file
   init_log();
+  ps::Postoffice::Get()->SetServerKeyRanges(hyper_param_.num_feature);
+  hyper_param_.num_server = ps::NumServers();
+  hyper_param_.num_worker = ps::NumWorkers();
   // Init train or predict
   if (hyper_param_.is_train) {
     init_train();
@@ -471,7 +475,6 @@ void Solver::init_predict() {
 
 // Start training or inference
 void Solver::StartWork() {
-  ps::Postoffice::Get()->SetServerKeyRanges(hyper_param_.num_feature);
   if (hyper_param_.is_train) {
     LOG(INFO) << "Start training work.";
     start_train_work();

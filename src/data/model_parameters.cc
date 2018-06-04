@@ -84,6 +84,10 @@ void Model::Initialize(const std::string& score_func,
   LOG(INFO) << "InitializeTime=" << timer.toc() << std::endl;
 }
 
+void Model::Initial(bool set_val) {
+  this->initial(set_val);
+}
+
 // To get the best performance for SSE, we need to
 // allocate memory for the model parameters in aligned way.
 // For SSE, the align number should be 16 byte.
