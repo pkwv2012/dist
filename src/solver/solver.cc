@@ -27,6 +27,7 @@ This file is the implementation of the Solver class.
 #include <stdexcept>
 #include <cstdio>
 #include <thread>
+#include <ps-lite/include/ps/internal/postoffice.h>
 
 #include "src/base/stringprintf.h"
 #include "src/base/split_string.h"
@@ -43,7 +44,7 @@ namespace xLearn {
 //    >  <| |___|  __/ (_| | |  | | | |
 //   /_/\_\______\___|\__,_|_|  |_| |_|
 //
-//      xLearn   -- 0.10 Version --
+//      xLearn   -- 0.30 Version --
 //------------------------------------------------------------------------------
 void Solver::print_logo() const {
   std::string logo = 
@@ -54,7 +55,7 @@ void Solver::print_logo() const {
                     "     \\ \\/ / |    / _ \\/ _` | '__| '_ \\ \n"
                     "      >  <| |___|  __/ (_| | |  | | | |\n"
                     "     /_/\\_\\_____/\\___|\\__,_|_|  |_| |_|\n\n"
-                    "        xLearn   -- 0.20 Version --\n"
+                    "        xLearn   -- 0.31 Version --\n"
 "----------------------------------------------------------------------------------------------\n"
 "\n";
   Color::Modifier green(Color::FG_GREEN);
@@ -247,15 +248,19 @@ void Solver::init_train() {
       );
       exit(0);
     }
+    if (reader_[i]->Type().compare("on-disk") == 0) {
+      reader_[i]->SetBlockSize(hyper_param_.block_size);
+    }
     LOG(INFO) << "Init Reader: " << file_list[i];
   }
   /*********************************************************
    *  Read problem                                         *
    *********************************************************/
   DMatrix* matrix = nullptr;
+  const bool& is_distributed = hyper_param_.is_distributed;
   index_t max_feat = 0, max_field = 0;
   for (int i = 0; i < num_reader; ++i) {
-    while(reader_[i]->Samples(matrix)) {
+    while (reader_[i]->Samples(matrix)) {
       int tmp = matrix->MaxFeat();
       if (tmp > max_feat) { max_feat = tmp; }
       if (hyper_param_.score_func.compare("ffm") == 0) {
@@ -266,14 +271,29 @@ void Solver::init_train() {
     // Return to the begining of target file.
     reader_[i]->Reset();
   }
-  hyper_param_.num_feature = max_feat + 1;
+  if (is_distributed) {
+    // count in the bias.
+    CHECK_GT(hyper_param_.num_feature, max_feat + 1);
+    // it's better for equal.
+    CHECK_GE(hyper_param_.num_field, max_field + 1);
+  } else {
+    hyper_param_.num_feature = max_feat + 1;
+    if (hyper_param_.score_func.compare("ffm") == 0) {
+      hyper_param_.num_field = max_field + 1;
+    }
+  }
+  // Check overflow:
+  // INT_MAX +  = 0
+  if (hyper_param_.num_feature == 0) {
+    print_error("Feature index is too large (overflow).");
+    LOG(FATAL) << "Feature index is too large (overflow).";
+  }
   LOG(INFO) << "Number of feature: " << hyper_param_.num_feature;
   print_info(
     StringPrintf("Number of Feature: %d", 
                  hyper_param_.num_feature)
   );
   if (hyper_param_.score_func.compare("ffm") == 0) {
-    hyper_param_.num_field = max_field + 1;
     LOG(INFO) << "Number of field: " << hyper_param_.num_field;
     print_info(
       StringPrintf("Number of Field: %d", 
@@ -305,7 +325,8 @@ void Solver::init_train() {
                    hyper_param_.num_field,
                    hyper_param_.num_K,
                    hyper_param_.auxiliary_size,
-                   hyper_param_.model_scale);
+                   hyper_param_.model_scale,
+                   !is_distributed);
   index_t num_param = model_->GetNumParameter();
   hyper_param_.num_param = num_param;
   LOG(INFO) << "Number parameters: " << num_param;
@@ -321,7 +342,7 @@ void Solver::init_train() {
    *  Initialize score function                            *
    *********************************************************/
   score_ = create_score();
-  score_->Initialize(hyper_param_.learning_rate,
+  score_->Initialize(is_distributed ? 1.0f : hyper_param_.learning_rate,
                      hyper_param_.regu_lambda,
                      hyper_param_.alpha,
                      hyper_param_.beta,
@@ -333,9 +354,11 @@ void Solver::init_train() {
    *  Initialize loss function                             *
    *********************************************************/
   loss_ = create_loss();
-  loss_->Initialize(score_, pool_,
-         hyper_param_.norm, 
-         hyper_param_.lock_free);
+  loss_->Initialize(score_,
+                    pool_,
+                    hyper_param_.norm,
+                    hyper_param_.lock_free,
+                    hyper_param_.batch_size);
   LOG(INFO) << "Initialize loss function.";
   /*********************************************************
    *  Init metric                                          *
@@ -448,6 +471,7 @@ void Solver::init_predict() {
 
 // Start training or inference
 void Solver::StartWork() {
+  ps::Postoffice::Get()->SetServerKeyRanges(hyper_param_.num_feature);
   if (hyper_param_.is_train) {
     LOG(INFO) << "Start training work.";
     start_train_work();
@@ -462,6 +486,7 @@ void Solver::start_train_work() {
   int epoch = hyper_param_.num_epoch;
   bool early_stop = hyper_param_.early_stop &&
                    !hyper_param_.cross_validation;
+  int stop_window = hyper_param_.stop_window;
   bool quiet = hyper_param_.quiet &&
               !hyper_param_.cross_validation;
   bool save_model = true;
@@ -481,7 +506,9 @@ void Solver::start_train_work() {
                      loss_,
                      metric_,
                      early_stop,
-                     quiet);
+                     stop_window,
+                     quiet,
+                     hyper_param_.is_distributed);
   print_action("Start to train ...");
 /******************************************************************************
  * Training under cross-validation                                            *
@@ -495,6 +522,7 @@ void Solver::start_train_work() {
  ******************************************************************************/
   else {
     trainer.Train();
+    // Save binary model
     if (save_model) {
       Timer timer;
       timer.tic();
@@ -508,7 +536,8 @@ void Solver::start_train_work() {
         StringPrintf("Time cost for saving model: %.2f (sec)",
              timer.toc())
       );
-    } 
+    }
+    // Save TXT model 
     if (save_txt_model) {
       Timer timer;
       timer.tic();

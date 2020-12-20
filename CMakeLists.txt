@@ -30,9 +30,13 @@ cmake_minimum_required(VERSION 2.8)
 # Using c++11;
 # Optimization on architecture
 #-------------------------------------------------------------------------------
-#add_definitions("-Wall -Wno-sign-compare -O3 -std=c++11 -march=native 
-add_definitions("-Wall -Wno-sign-compare -std=c++11 -march=native -pthread
+add_definitions("-Wall -Wno-sign-compare -O3 -std=c++11 -march=native
 -Wno-strict-aliasing -Wno-comment")
+
+#------------------------------------------------------------------------------
+# Used for debug
+#------------------------------------------------------------------------------
+# set(CMAKE_BUILD_TYPE "Debug")
 
 #-------------------------------------------------------------------------------
 # Declare where our project will be installed.

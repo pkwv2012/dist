@@ -23,11 +23,15 @@ This file defines the basic data structures used by xLearn.
 #ifndef XLEARN_DATA_DATA_STRUCTURE_H_
 #define XLEARN_DATA_DATA_STRUCTURE_H_
 
-#include <vector>
+#include <algorithm>
+#include <climits>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 #include "src/base/common.h"
 #include "src/base/file_util.h"
+#include "src/base/stl-util.h"
 
 namespace xLearn {
 
@@ -60,14 +64,14 @@ const int kAlignByte = 16;
 // will be printed for users during the training.
 //------------------------------------------------------------------------------
 struct MetricInfo {
-  real_t loss_val;    /* Loss info */
-  real_t metric_val;  /* Metric info */
+  real_t loss_val;    /* Loss value */
+  real_t metric_val;  /* Metric value */
 };
 
 //------------------------------------------------------------------------------
 // Node is used to store information for each column of the feature vector.
-// For tasks like lr and fm, we just need to store the feature id and the 
-// feature value. While for tasks like ffm, we also need to store the field id.
+// For tasks like LR and FM, we just need to store the feature id and the 
+// feature value. While for tasks like FFM, we also need to store field id.
 //------------------------------------------------------------------------------
 struct Node {
   // Default constructor
@@ -77,11 +81,11 @@ struct Node {
      feat_id(feat), 
      feat_val(val) { }
   /* Field id is start from 0 */
-  index_t field_id; 
+  index_t field_id;
   /* Feature id is start from 0 */ 
-  index_t feat_id;  
+  index_t feat_id;
   /* Feature value */ 
-  real_t feat_val;   
+  real_t feat_val;
 };
 
 //------------------------------------------------------------------------------
@@ -143,7 +147,7 @@ struct DMatrix {
      pos(0) { }
 
   // Destructor
-  ~DMatrix() { Release(); }
+  ~DMatrix() { }
 
   // Reset data for the DMatrix.
   // This function will first release the original
@@ -172,14 +176,15 @@ struct DMatrix {
   // Note that a typical alternative that forces a
   // reallocation is to use swap(), instead of using clear().
   void Release() {
-    row_length = 0;
     hash_value_1 = 0;
     hash_value_2 = 0;
     // Delete Y
     std::vector<real_t>().swap(Y);
     // Delete Node
     for (int i = 0; i < row_length; ++i) {
-      std::vector<Node>().swap(*row[i]);
+      if (row[i] != nullptr) {
+        STLDeleteElementsAndClear(&row);
+      }
     }
     // Delete SparseRow
     std::vector<SparseRow*>().swap(row);
@@ -260,35 +265,117 @@ struct DMatrix {
   //  ------------------------------------------
   // After compress, we can get a dense matrix like this:
   //  ------------------------------------------
-  //  |    1:0.1    2:0.1    3:0.1    4:0.1    |
-  //  |    5:0.1    6:0.1    7:0.1             |
-  //  |    2:0.1    3:0.1    8:0.1             |
-  //  |    9:0.1   10:0.1    11:0.1            |
+  //  |    1:0.1    5:0.1    7:0.1    8:0.1    |
+  //  |    3:0.1    10:0.1   11:0.1            |
+  //  |    5:0.1    7:0.1    9:0.1             |
+  //  |    2:0.1    4:0.1    6:0.1             |
   //  ------------------------------------------
   // Also, we can get a vector to store the mapping relations:
   //  -------------------------------------------------
-  //  | 1 | 5 | 8 | 10 | 3 | 12 | 20 | 11 | 2 | 4 | 7 |
+  //  | 1 | 2 | 3 | 4 | 5 | 7 | 8 | 10 | 11 | 12 | 20 |
   //  -------------------------------------------------
   void Compress(std::vector<index_t>& feature_list) {
     // Using a map to store the mapping relations
-    feature_map mp; 
-    index_t idx = 1;
+    // the feature_list must be sorted, cause the ps-lite using the sorted Key.
+    size_t node_num {0};
+    for (auto row : this->row) {
+      node_num += row->size();
+    }
+    std::unordered_set<index_t> feat_set;
+    feat_set.reserve(node_num);
     for (index_t i = 0; i < this->row_length; ++i) {
       SparseRow* row = this->row[i];
       for (SparseRow::iterator iter = row->begin();
            iter != row->end(); ++iter) {
-        feature_map::const_iterator got = mp.find(iter->feat_id);
-        // find a new feature
-        if (got == mp.end()) {
-          mp[iter->feat_id] = idx;
-          feature_list.push_back(iter->feat_id);
-          iter->feat_id = idx;
-          idx++;
-        } else {
-          iter->feat_id = got->second;
+        if (feat_set.count(iter->feat_id) == 0) {
+          feat_set.insert(iter->feat_id);
         }
       }
-    } 
+    }
+    feature_list.reserve(feat_set.size());
+    std::copy(feat_set.begin(), feat_set.end(), 
+              std::back_inserter(feature_list));
+    std::sort(begin(feature_list), end(feature_list));
+    feature_map mp;
+    mp.reserve(feature_list.size());
+    for (index_t i = 0; i < feature_list.size(); ++ i) {
+      mp[feature_list[i]] = i + 1;
+    }
+    for (index_t i = 0; i < this->row_length; ++ i) {
+      for (auto &iter: *this->row[i]) {
+        // using map is better than lower_bound
+        iter.feat_id = mp[iter.feat_id];
+      }
+    }
+  }
+
+  void Compress(const std::unordered_map<index_t, index_t>& id) {
+    for (index_t i = 0; i < this->row_length; ++ i) {
+      SparseRow* row = this->row[i];
+      for (SparseRow::iterator iter = row->begin();
+           iter != row->end(); ++ iter) {
+        const auto& pr = id.find(iter->feat_id);
+        CHECK(pr != id.end());
+        iter->feat_id = pr->second;
+      }
+    }
+  }
+
+  template <class Key>
+  void ToDenseMatrix(index_t start_index, index_t end_index,
+                     std::vector<Key>& dense_to_sparse) {
+    // get feature set
+    std::unordered_set<index_t> feat_set;
+    for (index_t i = start_index; i < end_index; ++ i) {
+      SparseRow* row = this->row[i];
+      for (SparseRow::iterator iter = row->begin();
+           iter != row->end(); ++ iter) {
+        feat_set.insert(iter->feat_id);
+      }
+    }
+    // get sorted feature set and map
+    dense_to_sparse.resize(feat_set.size());
+    std::copy(feat_set.begin(), feat_set.end(), dense_to_sparse.begin());
+    std::sort(dense_to_sparse.begin(), dense_to_sparse.end());
+    for (int i = 1; i < dense_to_sparse.size(); ++ i) {
+      CHECK_GT(dense_to_sparse[i], dense_to_sparse[i - 1]);
+    }
+    std::unordered_map<index_t, index_t> feat_map;
+    for (size_t i = 0; i < dense_to_sparse.size(); ++ i) {
+      feat_map[dense_to_sparse[i]] = i;
+    }
+    // map sparse index to dense index
+    for (index_t i = start_index; i < end_index; ++ i) {
+      SparseRow* row = this->row[i];
+      for (SparseRow::iterator iter = row->begin();
+           iter != row->end(); ++ iter) {
+        iter->feat_id = feat_map[iter->feat_id];
+      }
+    }
+  }
+
+  template <class Key>
+  void ToSparseMatrix(index_t start_index, index_t end_index,
+                      const std::vector<Key>& dense_to_sparse) {
+    for (index_t i = start_index; i < end_index; ++ i) {
+      SparseRow* row = this->row[i];
+      for (SparseRow::iterator iter = row->begin();
+           iter != row->end(); ++ iter) {
+        iter->feat_id = dense_to_sparse[iter->feat_id];
+      }
+    }
+  }
+
+  size_t UniqueFeatureNum(index_t start_index, index_t end_index) const {
+    std::unordered_set<index_t> feat_set;
+    for (index_t i = start_index; i < end_index; ++ i) {
+      SparseRow* row = this->row[i];
+      for (SparseRow::iterator iter = row->begin();
+           iter != row->end(); ++ iter) {
+        feat_set.insert(iter->feat_id);
+      }
+    }
+    return feat_set.size();
   }
 
   // Get a mini-batch of data from curremt data matrix. 
@@ -299,6 +386,7 @@ struct DMatrix {
     // Copy mini-batch
     for (index_t i = 0; i < batch_size; ++i) {
       if (this->pos >= this->row_length) {
+        this->pos = 0;
         return i;
       }
       mini_batch.row[i] = this->row[pos];
@@ -307,6 +395,25 @@ struct DMatrix {
       this->pos++;
     }
     return batch_size;
+  }
+
+  // Get the unique index vector of this data matrix
+  template <class V>
+  std::vector<V> GetSortedUniqueIndex(int start_idx = 0, int end_idx = INT_MAX) const {
+    std::unordered_set<V> index_set;
+    end_idx = std::min(end_idx, (int)this->row_length);
+    for (int i = 0; i < this->row_length; ++ i) {
+      if (i % 10000 == 0) {
+        LOG(INFO) << "GetSortedUniqueIndex||i=" << i << std::endl;
+      }
+      SparseRow* row_i = this->row[i];
+      for (auto j = row_i->begin(); j != row_i->end(); ++ j) {
+        index_set.insert(static_cast<V>(j->feat_id));
+      }
+    }
+    auto indexVec = std::vector<V>(index_set.begin(), index_set.end());
+    std::sort(indexVec.begin(), indexVec.end());
+    return indexVec;
   }
 
   // Serialize current DMatrix to disk file.
@@ -388,15 +495,14 @@ struct DMatrix {
     return max;
   }
 
-  /* The DMatrix has a hash value that is
-  geneerated from the txt file.
-  These two values are used to check whether
-  we can use binary file to speedup data reading */
+  /* The DMatrix has a hash value that is geneerated 
+  from the txt file. These two values are used to check 
+  whether we can use binary file to speedup data reading */
   uint64 hash_value_1;
   uint64 hash_value_2;
   /* Row length of current matrix */
   index_t row_length;
-  /* Using pointer to implement zero-copy */
+  /* Using pointer for zero-copy */
   std::vector<SparseRow*> row;
   /* 0 or -1 for negative and +1 for positive
   example, and others for regression */

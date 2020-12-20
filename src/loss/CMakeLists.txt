@@ -2,13 +2,13 @@
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/test/loss)
 
 # Build static library
-set(STA_DEPS score data base)
+set(STA_DEPS score data base distributed)
 add_library(loss STATIC loss.cc squared_loss.cc 
 cross_entropy_loss.cc metric.cc)
 target_link_libraries(loss ${STA_DEPS})
 
 # Build uinttests
-set(LIBS loss score data base gtest)
+set(LIBS loss score data base gtest distributed)
 
 #add_executable(loss_test loss_test.cc)
 #target_link_libraries(loss_test gtest_main ${LIBS})

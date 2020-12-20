@@ -100,7 +100,8 @@ class Model {
               index_t num_field,
               index_t num_K,
               index_t aux_size,
-              real_t scale = 1.0);
+              real_t scale = 1.0,
+              bool alloc = true);
 
   // Serialize model to a checkpoint file.
   void Serialize(const std::string& filename);
@@ -118,7 +119,7 @@ class Model {
   void Shrink();
 
   // Get the size of auxiliary cache size
-  inline real_t GetAuxiliarySize() { return aux_size_; }
+  inline index_t GetAuxiliarySize() { return aux_size_; }
 
   // Get the pointer of linear term.
   inline real_t* GetParameter_w() { return param_w_; }
@@ -154,6 +155,8 @@ class Model {
   // Get the number of k.
   inline index_t GetNumK() { return num_K_; }
 
+  inline real_t GetScale() { return scale_; }
+
   // Get the aligned size of K.
   inline index_t get_aligned_k() {
     return (index_t)ceil((real_t)num_K_/kAlign)*kAlign;
@@ -163,6 +166,31 @@ class Model {
   inline index_t GetNumParameter() {
     return param_num_w_ + param_num_v_ + 2;
   }
+
+  void SetParamWPtr(real_t* param, size_t num) {
+    // this will leading to memory leak
+    param_w_ = param;
+    num_feat_ = num;
+  }
+
+  void SetParamVPtr(real_t* param) {
+    // this will leading to memory leak
+    // the latent vector should be aligned
+    param_v_ = param;
+  }
+
+  void SetParamBPtr(real_t* param) {
+    // this will leading to memory leak
+    param_b_ = param;
+  }
+
+  void SetParamB(real_t* param) {
+    for (int i = 0; i < aux_size_; ++ i) {
+      param_b_[i] = param[i];
+    }
+  }
+
+  void SetZero();
 
  protected:
   /* Score function

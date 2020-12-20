@@ -44,111 +44,133 @@ real_t LinearScore::CalcScore(const SparseRow* row,
 // Calculate gradient and update current model
 void LinearScore::CalcGrad(const SparseRow* row,
                            Model& model,
+                           Model& gradient,
                            real_t pg,
                            real_t norm) {
   // Using sgd
   if (opt_type_.compare("sgd") == 0) {
-    this->calc_grad_sgd(row, model, pg, norm);
+    this->calc_grad_sgd(row, model, gradient, pg, norm);
   }
   // Using adagrad
   else if (opt_type_.compare("adagrad") == 0) {
-    this->calc_grad_adagrad(row, model, pg, norm);
+    this->calc_grad_adagrad(row, model, gradient, pg, norm);
   }
   // Using ftrl
   else if (opt_type_.compare("ftrl") == 0) {
-    this->calc_grad_ftrl(row, model, pg, norm);
+    this->calc_grad_ftrl(row, model, gradient, pg, norm);
   }
+}
+
+void LinearScore::CalcGrad(const SparseRow* row,
+              Model& model,
+              real_t pg,
+              std::vector<real_t>& gradient_w,
+              std::vector<real_t>& gradient_v,
+              real_t norm) {
 }
 
 // Calculate gradient and update current model using sgd
 void LinearScore::calc_grad_sgd(const SparseRow* row,
                                 Model& model,
+                                Model& gradient,
                                 real_t pg,
                                 real_t norm) {
   // linear term
   real_t* w = model.GetParameter_w();
+  real_t* w_out = gradient.GetParameter_w();
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
     real_t gradient = pg * iter->feat_val;
     index_t idx_g = iter->feat_id;
     gradient += regu_lambda_ * w[idx_g];
-    w[idx_g] -= (learning_rate_ * gradient);
+    w_out[idx_g] -= (learning_rate_ * gradient);
   }
   // bias
   w = model.GetParameter_b();
-  real_t &wb = w[0];
+  w_out = gradient.GetParameter_b();
   real_t g = pg;
-  wb -= learning_rate_ * g;
+  w_out[0] -= learning_rate_ * g;
 }
 
 // Calculate gradient and update current model using adagrad
 void LinearScore::calc_grad_adagrad(const SparseRow* row,
                                     Model& model,
+                                    Model& gradient,
                                     real_t pg,
                                     real_t norm) {
   // linear term
   real_t* w = model.GetParameter_w();
+  real_t* w_out = gradient.GetParameter_w();
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
     real_t gradient = pg * iter->feat_val;
     index_t idx_g = iter->feat_id * 2;
     index_t idx_c = idx_g + 1;
     gradient += regu_lambda_ * w[idx_g];
-    w[idx_c] += (gradient * gradient);
-    w[idx_g] -= (learning_rate_ * gradient *
+    w_out[idx_c] += (gradient * gradient);
+    w_out[idx_g] -= (learning_rate_ * gradient *
                  InvSqrt(w[idx_c]));
   }
   // bias
   w = model.GetParameter_b();
-  real_t &wb = w[0];
+  w_out = gradient.GetParameter_b();
   real_t &wbg = w[1];
   real_t g = pg;
-  wbg += g*g;
-  wb -= learning_rate_ * g * InvSqrt(wbg);
+  w_out[1] += g*g;
+  w_out[0] -= learning_rate_ * g * InvSqrt(wbg);
 }
 
 // Calculate gradient and update current model using ftrl
 void LinearScore::calc_grad_ftrl(const SparseRow* row,
                                  Model& model,
+                                 Model& gradient,
                                  real_t pg,
                                  real_t norm) {
   // linear term
   real_t sqrt_norm = sqrt(norm);
   real_t *w = model.GetParameter_w();
+  real_t* w_out = gradient.GetParameter_w();
   for (SparseRow::const_iterator iter = row->begin();
        iter != row->end(); ++iter) {
     real_t &wl = w[iter->feat_id*3];
     real_t &wlg = w[iter->feat_id*3+1];
     real_t &wlz = w[iter->feat_id*3+2];
+    real_t &wl_out = w_out[iter->feat_id*3];
+    real_t &wlg_out = w_out[iter->feat_id*3+1];
+    real_t &wlz_out = w_out[iter->feat_id*3+2];
     real_t g = lambda_2_*wl+pg*iter->feat_val*sqrt_norm; 
     real_t old_wlg = wlg;
-    wlg += g*g;
+    wlg_out += g*g;
     real_t sigma = (sqrt(wlg)-sqrt(old_wlg)) / alpha_;
-    wlz += (g-sigma*wl);
+    wlz_out += (g-sigma*wl);
     int sign = wlz > 0 ? 1:-1;
     if (sign*wlz <= lambda_1_) {
-      wl = 0;
+      wl_out = 0;
     } else {
-      wl = (sign*lambda_1_-wlz) / 
+      wl_out = (sign*lambda_1_-wlz) /
            ((beta_ + sqrt(wlg)) / 
             alpha_ + lambda_2_);
     }
   }
   // bias
   w = model.GetParameter_b();
+  w_out = gradient.GetParameter_b();
   real_t &wb = w[0];
   real_t &wbg = w[1];
   real_t &wbz = w[2];
+  real_t &wb_out = w_out[0];
+  real_t &wbg_out = w_out[1];
+  real_t &wbz_out = w_out[2];
   real_t g = pg;
   real_t old_wbg = wbg;
-  wbg += g*g;
+  wbg_out += g*g;
   real_t sigma = (sqrt(wbg)-sqrt(old_wbg)) / alpha_;
-  wbz += (g-sigma*wb);
+  wbz_out += (g-sigma*wb);
   int sign = wbz > 0 ? 1:-1;
   if (sign*wbz <= lambda_1_) {
-    wb = 0;
+    wb_out = 0;
   } else {
-    wb = (sign*lambda_1_-wbz) / 
+    wb_out = (sign*lambda_1_-wbz) /
          ((beta_ + sqrt(wbg)) / 
           alpha_ + lambda_2_);
   }

@@ -38,6 +38,8 @@ reading data from data source.
 
 namespace xLearn {
 
+const int kDefautBlockSize = 500;  // 500 MB
+
 //------------------------------------------------------------------------------
 // Reader is an abstract class which can be implemented in different way,
 // such as the InmemReader that reads data from memory, and the OndiskReader
@@ -99,6 +101,12 @@ class Reader {
 
   // Free the memory of data matrix.
   virtual void Clear() = 0;
+
+  // Return the Reader type
+  virtual std::string Type() = 0;
+
+  // This method is only used in On-disk Reader
+  virtual void SetBlockSize(int size) = 0;
 
   // Wether current dataset has label y ?
   bool inline has_label() { return has_label_; }
@@ -163,12 +171,28 @@ class InmemReader : public Reader {
     data_buf_.Release();
   }
 
+  // Return the Reader type
+  virtual std::string Type() {
+    return "in-memory";
+  }
+
+  // This method is only used in On-Disk Reader
+  virtual void SetBlockSize(int size) {
+    // Do nothing
+    return;
+  }
+
   // If shuffle data ?
   virtual inline void SetShuffle(bool shuffle) {
     this->shuffle_ = shuffle;
     if (shuffle_ && !order_.empty()) {
       random_shuffle(order_.begin(), order_.end());
     }
+  }
+
+  // Get data buffer
+  virtual inline DMatrix* GetMatrix() {
+    return &data_buf_;
   }
 
  protected:
@@ -204,8 +228,9 @@ class OndiskReader : public Reader {
  public:
   // Constructor and Destructor
   OndiskReader() 
-    : block_size_(500) {  }  /* 500 MB on default */
+    : block_size_(500) {  }  // 500 MB by default
   ~OndiskReader() { 
+    Clear();
     Close(file_ptr_); 
   }
 
@@ -221,7 +246,20 @@ class OndiskReader : public Reader {
   // Free the memory of data matrix.
   virtual void Clear() {
     data_samples_.Release();
-    delete [] block_;
+    if (block_ != nullptr) {
+      delete [] block_;
+    }
+  }
+
+  // Return the Reader type
+  virtual std::string Type() {
+    return "on-disk";
+  }
+
+  // This method is only used in On-Disk Reader
+  virtual void SetBlockSize(int size) {
+    CHECK_GT(size, 0);
+    block_size_ = size;
   }
 
   // We cannot set shuffle for OndiskReader
@@ -253,6 +291,75 @@ class OndiskReader : public Reader {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(OndiskReader);
+};
+
+//------------------------------------------------------------------------------
+// Copy DMatrix from some other data source, e.g., Python Pandas.
+// When we use the Python interface of xLearn, users often need to 
+// convert some other data object to a DMatrix data structure, and then
+// we can use CopyReader to initialize the Reader class. After that, the
+// CopyReader will act as the same with the InmemReader.
+//------------------------------------------------------------------------------
+class CopyReader : public Reader {
+ public:
+  // Constructor and Destructor
+  CopyReader() : pos_(0) { }
+  ~CopyReader() { }
+  
+  // We do nothing in this funtion
+  virtual void Initialize(const std::string& filename);
+
+  // Copy DMatrix from the other data source
+  virtual void CopyDMatrix(DMatrix* matrix);
+
+  // Sample data from the memory buffer.
+  virtual index_t Samples(DMatrix* &matrix);
+
+  // Return to the head of file
+  virtual void Reset();
+
+  // Free the memory of data matrix.
+  virtual void Clear() {
+    data_buf_.Release();
+  }
+
+  // Return Reader type
+  virtual std::string Type() {
+    return "copy";
+  }
+
+  // This method is only used in On-Disk Reader
+  virtual void SetBlockSize(int size) {
+    // Do nothing
+    return;
+  }
+
+  // If shuffle data ?
+  virtual inline void SetShuffle(bool shuffle) {
+    this->shuffle_ = shuffle;
+    if (shuffle_ && !order_.empty()) {
+      random_shuffle(order_.begin(), order_.end());
+    }
+  }
+
+  // Get data buffer
+  virtual inline DMatrix* GetMatrix() {
+    return &data_buf_;
+  }
+
+ protected:
+  /* Reader will load all the data 
+  into this buffer */
+  DMatrix data_buf_;
+  /* Number of record at each samplling */
+  index_t num_samples_;
+  /* Position for samplling */
+  index_t pos_;
+  /* For random shuffle */
+  std::vector<index_t> order_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CopyReader);
 };
 
 //------------------------------------------------------------------------------

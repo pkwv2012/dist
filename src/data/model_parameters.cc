@@ -24,6 +24,7 @@ This file is the implementation of the Model class.
 
 #include <string.h>
 #include <pmmintrin.h>  // for SSE
+#include <src/base/timer.h>
 
 #include "src/base/file_util.h"
 #include "src/base/format_print.h"
@@ -44,7 +45,8 @@ void Model::Initialize(const std::string& score_func,
                   index_t num_field,
                   index_t num_K,
                   index_t aux_size,
-                  real_t scale) {
+                  real_t scale,
+                  bool alloc) {
   CHECK(!score_func.empty());
   CHECK(!loss_func.empty());
   CHECK_GT(num_feature, 0);
@@ -74,7 +76,12 @@ void Model::Initialize(const std::string& score_func,
   } else {
     LOG(FATAL) << "Unknow score function: " << score_func;
   }
-  this->initial(true);
+  Timer timer;
+  timer.tic();
+  if (alloc) {
+    this->initial(true);
+  }
+  LOG(INFO) << "InitializeTime=" << timer.toc() << std::endl;
 }
 
 // To get the best performance for SSE, we need to
@@ -83,7 +90,7 @@ void Model::Initialize(const std::string& score_func,
 void Model::initial(bool set_val) {
   try {
     // Conventional malloc for linear term and bias
-    param_w_ = (real_t*)malloc(param_num_w_ * sizeof(real_t));
+    param_w_ = (real_t*)malloc((param_num_w_ + aux_size_) * sizeof(real_t));
     param_b_ = (real_t*)malloc(aux_size_ * sizeof(real_t));
     if (score_func_.compare("fm") == 0 ||
         score_func_.compare("ffm") == 0) {
@@ -110,6 +117,18 @@ void Model::initial(bool set_val) {
   // Set value for model
   if (set_val) {
     set_value();
+  }
+}
+
+void Model::SetZero() {
+  if (param_w_ != nullptr) {
+    memset(param_w_, 0, sizeof(param_w_));
+  }
+  if (param_b_ != nullptr) {
+    memset(param_b_, 0, sizeof(param_b_));
+  }
+  if (param_v_ != nullptr) {
+    memset(param_v_, 0, sizeof(param_v_));
   }
 }
 
@@ -174,8 +193,11 @@ void Model::set_value() {
 // Free the allocated memory
 void Model::free_model() {
   free(param_w_);
+  param_w_ = nullptr;
   free(param_v_);
+  param_v_ = nullptr;
   free(param_b_);
+  param_b_ = nullptr;
   if (param_best_w_ != nullptr) {
     free(param_best_w_);
   }
@@ -230,6 +252,47 @@ void Model::SerializeToTxt(const std::string& filename) {
   /* linear term */ 
   for (index_t n = 0; n < param_num_w_; n+=aux_size_) {
     o_file << *(param_w_+n) << "\n";
+  }
+  /* letent factor */
+  index_t k_aligned = get_aligned_k();
+  if (score_func_.compare("fm") == 0) {
+    real_t* w = param_v_;
+    for (index_t j = 0; j < num_feat_; ++j) {
+      for(index_t d = 0; d < num_K_; d++, w++) {
+        o_file << *w;
+        if (d != num_K_-1) {
+          o_file << " ";
+        }
+      }
+      for(index_t d = num_K_; d < k_aligned; d++, w++) {
+        // do nothing
+      }
+      for(index_t d = k_aligned; d < aux_size_*k_aligned; d++, w++) {
+        // do nothing
+      }
+      o_file << "\n";
+    }
+  } else if (score_func_.compare("ffm") == 0) {
+    real_t* w = param_v_;
+    for (index_t j = 0; j < num_feat_; ++j) {
+      for (index_t f = 0; f < num_field_; ++f) {
+        for (index_t d = 0; d < k_aligned; ) {
+          for (index_t s = 0; s < kAlign; s++, w++, d++) {
+            if (d < num_K_) {
+              o_file << *w;
+              if (d != num_K_-1) {
+                o_file << " ";
+              }
+            }
+            for (index_t j = 1; j < aux_size_; ++j) {
+              // do nothing
+            }
+          }
+          w += (aux_size_-1) * kAlign;
+        }
+      }
+      o_file << "\n";
+    }
   }
 }
 

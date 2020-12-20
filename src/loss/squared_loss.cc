@@ -96,7 +96,7 @@ void sq_gradient_thread(const DMatrix* matrix,
     // partial gradient: -error
     real_t pg = pred - matrix->Y[i];
     // real gradient and update
-    score_func->CalcGrad(row, *model, pg, norm);
+    score_func->CalcGrad(row, *model, *model, pg, norm);
   }
   *sum *= 0.5;
 }
@@ -141,13 +141,5 @@ void SquaredLoss::CalcGrad(const DMatrix* matrix,
     loss_sum_ += sum[i];
   }
 }
-
-// Given data sample and current model, calculate gradient.
-// Note that this method doesn't update local model, and the
-// gradient will be pushed to the parameter server, which is 
-// used for distributed computation.
-void SquaredLoss::CalcGradDist(DMatrix* matrix,
-                               Model& model,
-                               std::vector<real_t>& grad) {}
 
 } // namespace xLearn

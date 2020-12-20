@@ -29,8 +29,6 @@ This file is the implementation of the Trainer class.
 
 namespace xLearn {
 
-const int kStopWindow = 2;
-
 /*********************************************************
  *  Show head info                                       *
  *********************************************************/
@@ -200,8 +198,8 @@ void Trainer::train(std::vector<Reader*>& train_reader,
         if (te_info.loss_val >= prev_loss) {
           stop_window++;
           // If the validation loss goes up conntinuously
-          // in 3 epoch, we stop training
-          if (stop_window == kStopWindow) { break; }
+          // in stop_window epoch, we stop training
+          if (stop_window == stop_window_) { break; }
         } else {
           stop_window = 0;
         }
@@ -231,7 +229,12 @@ real_t Trainer::calc_gradient(std::vector<Reader*>& reader) {
     for (;;) {
       index_t tmp = reader[i]->Samples(matrix);
       if (tmp == 0) { break; }
-      loss_->CalcGrad(matrix, *model_);
+      if (is_distributed_) {
+        std::vector<real_t> pred;
+        loss_->CalcGradDist(matrix, *model_, pred);
+      } else {
+        loss_->CalcGrad(matrix, *model_);
+      }
     }
   }
   return loss_->GetLoss();
@@ -254,7 +257,11 @@ MetricInfo Trainer::calc_metric(std::vector<Reader*>& reader_list) {
       index_t tmp = reader_list[i]->Samples(matrix);
       if (tmp == 0) { break; }
       if (tmp != pred.size()) { pred.resize(tmp); }
-      loss_->Predict(matrix, *model_, pred);
+      if (is_distributed_) {
+        loss_->PredictDist(matrix, *model_, pred);
+      } else {
+        loss_->Predict(matrix, *model_, pred);
+      }
       loss_->Evalute(pred, matrix->Y);
       if (metric_ != nullptr) {
         metric_->Accumulate(matrix->Y, pred);

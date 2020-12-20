@@ -81,8 +81,7 @@ Also, users can save the model in txt format by using ``-t`` option. For example
 
   ./xlearn_train ./small_train.txt -t model.txt
 
-After that, we get a new file called ``model.txt``, which stores the trained model in txt format.
-For now, xLearn only supports to save the bias and linear term in txt file. ::
+After that, we get a new file called ``model.txt``, which stores the trained model in txt format. ::
 
   head -n 5 ./model.txt
 
@@ -91,6 +90,9 @@ For now, xLearn only supports to save the bias and linear term in txt file. ::
   0
   0
   0
+
+For the linear and bias term, we store each parameter in each line. For FM and FFM, we store one 
+vector of the latent factor in each line.
 
 Users can also set ``-o`` option to specify the output file. For example: ::
 
@@ -130,7 +132,11 @@ input data should be the ``libffm`` format. ::
 
   CSV format:
 
-     value_1 value_2 .. value_n label
+     label value_1 value_2 .. value_n
+
+Note that, if the csv file doesn't contain the label y, the user should add a 
+placeholder to the dataset by themselves (Also in test data). Otherwise, the parser 
+will treat the first element as the label y. 
 
   libffm format:
 
@@ -287,9 +293,13 @@ at that epoch (you may get different a stopping number on your machine) ::
   [ ACTION     ] Early-stopping at epoch 7
   [ ACTION     ] Start to save model ...
 
+User can set window size for early stopping by using ``-sw`` option. ::
+
+    ./xlearn_train ./small_train.txt -e 10 -sw 3
+
 Users can disable early-stopping by using ``--dis-es`` option ::
 
-  ./xlearn_train ./small_train.txt -s 2 -v ./small_test.txt -e 10 --dis-es
+    ./xlearn_train ./small_train.txt -s 2 -v ./small_test.txt -e 10 --dis-es
 
 At this time, xLearn performed 10 epoch for training.
 

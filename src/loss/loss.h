@@ -49,7 +49,7 @@ namespace xLearn {
 //
 //   // Then, we can perform gradient descent like this:
 //   DMatrix* matrix = NULL;
-//   for (int n = 0: n < epoch; ++n) {
+//   for (int n = 0; n < epoch; ++n) {
 //     reader->Reset();
 //     while (reader->Samples(matrix)) {
 //       // Assume that the model and updater have been initialized
@@ -80,10 +80,10 @@ class Loss {
                   ThreadPool* pool, 
                   bool norm = true,
                   bool lock_free = false,
-                  index_t batch_size = 0) {
+                  index_t batch_size = 10000) {
     CHECK_NOTNULL(score);
     CHECK_NOTNULL(pool);
-    CHECK_GE(batch_size, 0);
+    CHECK_GT(batch_size, 0);
     score_func_ = score;
     pool_ = pool;
     norm_ = norm;
@@ -101,6 +101,10 @@ class Loss {
                        Model& model,
                        std::vector<real_t>& pred);
 
+  virtual void PredictDist(DMatrix* matrix,
+                           Model& model,
+                           std::vector<real_t>& pred);
+
   // Given data sample and current model, calculate gradient
   // and update current model parameters.
   // This function will also acummulate loss value.
@@ -113,7 +117,7 @@ class Loss {
   // used for distributed computation.
   virtual void CalcGradDist(DMatrix* data_matrix,
                             Model& model,
-                            std::vector<real_t>& grad) = 0;
+                            std::vector<real_t>& grad);
 
   // Return the calculated loss value
   virtual real_t GetLoss() {
@@ -128,6 +132,10 @@ class Loss {
 
   // Return a current loss type
   virtual std::string loss_type() = 0;
+
+  virtual real_t CalcLoss(const real_t& y, const real_t& pred) = 0;
+
+  virtual real_t CalcPartialGradient(const real_t& y, const real_t& pred) = 0;
 
  protected:
   /* The score function, including LinearScore,

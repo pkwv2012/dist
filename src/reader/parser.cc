@@ -52,9 +52,9 @@ index_t Parser::get_line_number(char* buf, uint64 buf_size) {
 
 // Get one line from memory buffer
 uint64 Parser::get_line_from_buffer(char* line,
-                               char* buf,
-                               uint64 pos,
-                               uint64 size) {
+                                    char* buf,
+                                    uint64 pos,
+                                    uint64 size) {
   if (pos >= size) { return 0; }
   uint64 end_pos = pos;
   while (end_pos < size && buf[end_pos] != '\n') { end_pos++; }
@@ -76,13 +76,14 @@ uint64 Parser::get_line_from_buffer(char* line,
 // LibsvmParser parses the following data format:
 // [y1 idx:value idx:value ...]
 // [y2 idx:value idx:value ...]
+// idx can start from 0
 //------------------------------------------------------------------------------
 void LibsvmParser::Parse(char* buf, uint64 size, DMatrix& matrix) {
   CHECK_NOTNULL(buf);
   CHECK_GT(size, 0);
   index_t line_num = get_line_number(buf, size);
   matrix.ResetMatrix(line_num);
-  static char* line_buf = new char[kMaxLineSize];
+  char* line_buf = new char[kMaxLineSize];
   // Parse every line
   uint64 pos = 0;
   for (index_t i = 0; i < line_num; ++i) {
@@ -122,19 +123,21 @@ void LibsvmParser::Parse(char* buf, uint64 size, DMatrix& matrix) {
     norm = 1.0f / norm;
     matrix.norm[i] = norm;
   }
+  delete [] line_buf;
 }
 
 //------------------------------------------------------------------------------
 // FFMParser parses the following data format:
 // [y1 field:idx:value field:idx:value ...]
 // [y2 field:idx:value field:idx:value ...]
+// idx can start from 0
 //------------------------------------------------------------------------------
 void FFMParser::Parse(char* buf, uint64 size, DMatrix& matrix) {
   CHECK_NOTNULL(buf);
   CHECK_GT(size, 0);
   index_t line_num = get_line_number(buf, size);
   matrix.ResetMatrix(line_num);
-  static char* line_buf = new char[kMaxLineSize];
+  char* line_buf = new char[kMaxLineSize];
   // Parse every line
   uint64 pos = 0;
   for (index_t i = 0; i < line_num; ++i) {
@@ -178,23 +181,24 @@ void FFMParser::Parse(char* buf, uint64 size, DMatrix& matrix) {
     norm = 1.0f / norm;
     matrix.norm[i] = norm;
   }
+  delete [] line_buf;
 }
 
 //------------------------------------------------------------------------------
 // CSVParser parses the following data format:
-// [feat_1 feat_2 feat_3 ... feat_n y1]
-// [feat_1 feat_2 feat_3 ... feat_n y2]
+// [y1 feat_1 feat_2 feat_3 ... feat_n]
+// [y2 feat_1 feat_2 feat_3 ... feat_n]
 // Note that, if the csv file doesn't contain the
-// label y, the user should add a placeholder to the dataset
-// by themselves. Otherwise, the parser will treat the last
-// element as the label y.
+// label y, users should add a placeholder to the dataset
+// by themselves (Also in test data). Otherwise, the parser 
+// will treat the first element as the label y.
 //------------------------------------------------------------------------------
 void CSVParser::Parse(char* buf, uint64 size, DMatrix& matrix) {
   CHECK_NOTNULL(buf);
   CHECK_GT(size, 0);
   index_t line_num = get_line_number(buf, size);
   matrix.ResetMatrix(line_num);
-  static char* line_buf = new char[kMaxLineSize];
+  char* line_buf = new char[kMaxLineSize];
   // Parse every line
   uint64 pos = 0;
   std::vector<std::string> str_vec;
@@ -218,6 +222,7 @@ void CSVParser::Parse(char* buf, uint64 size, DMatrix& matrix) {
     norm = 1.0f / norm;
     matrix.norm[i] = norm;
   }
+  delete [] line_buf;
 }
 
 } // namespace xLearn
